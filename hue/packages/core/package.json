@@ -1,0 +1,11 @@
+{
+  "name": "@hue/core",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Hue core: types, event contract, ports, loop. Zero I/O, zero runtime deps.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./contracts": "./contracts/index.ts"
+  }
+}
