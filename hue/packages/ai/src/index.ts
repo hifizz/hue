@@ -1,7 +1,7 @@
 import type { ModelPort } from '@hue/core'
 import { anthropicModel, type AnthropicOptions } from './anthropic.js'
 
-export type { AnthropicOptions } from './anthropic.js'
+export type { AnthropicOptions, TraceEvent } from './anthropic.js'
 export { anthropicModel } from './anthropic.js'
 
 export type ModelOptions = AnthropicOptions

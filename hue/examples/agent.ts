@@ -7,7 +7,7 @@
  * 没有 policy 包。
  */
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync } from 'node:fs'
+import { appendFileSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline/promises'
@@ -94,12 +94,15 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   }
   const sandbox = mode === 'docker' ? await docker({ mount: workdir, image: process.env.HUE_IMAGE, network: process.env.HUE_NETWORK }) : await local({ root: workdir })
 
+  // HUE_TRACE=文件：把实际发给 provider 的请求体和响应头逐行写进去（JSONL，不含 key）。排查"模型到底收到了什么"用。
+  const traceFile = process.env.HUE_TRACE
+  const trace = traceFile ? (e: object) => appendFileSync(traceFile, `${JSON.stringify({ at: Date.now(), sessionId, ...e })}\n`) : undefined
   const apiKey = process.env.AI_GATEWAY_API_KEY || process.env.ANTHROPIC_API_KEY
   const rl = createInterface({ input: process.stdin, output: process.stdout })
   let result
   try {
     result = await runAgent({
-      model: model(`anthropic:${process.env.HUE_MODEL ?? 'claude-sonnet-5-5'}`, { apiKey, baseURL: process.env.AI_GATEWAY_BASE_URL || process.env.ANTHROPIC_BASE_URL, thinking: { type: 'adaptive', display: 'summarized' } }),
+      model: model(`anthropic:${process.env.HUE_MODEL ?? 'claude-sonnet-5-5'}`, { apiKey, baseURL: process.env.AI_GATEWAY_BASE_URL || process.env.ANTHROPIC_BASE_URL, thinking: { type: 'adaptive', display: 'summarized' }, trace }),
       sandbox, task, sessionId, db: process.env.HUE_DB ?? './hue.db',
       confirmUnsafe: mode === 'local', // 在容器里不再逐条确认；local 没有隔离，仍然问
       ask: async p => /^y/i.test(await rl.question(`\n允许执行？ ${p} [y/N] `)), onEvent: printer(),

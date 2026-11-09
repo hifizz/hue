@@ -13,7 +13,7 @@ const m = model('anthropic:claude-haiku-5-5', {
 // m 是 ModelPort：交给 core 的 runTurn({ model: m, ... })
 ```
 
-选项：`apiKey`、`baseURL`、`maxRetries`（默认 2）、`anthropicVersion`（默认 `2026-10-21`）、`thinking`、`effort`、`cache`（默认 true）。
+选项：`apiKey`、`baseURL`、`maxRetries`（默认 2）、`anthropicVersion`（默认 `2026-10-21`）、`thinking`、`effort`、`cache`（默认 true）、`trace`（调试钩子，默认关：收到实际发出的请求体和响应头，不含 key）。
 其他 Anthropic 字段走 `settings.providerOptions.anthropic`，会合并进请求体最外层。
 
 ## 结构

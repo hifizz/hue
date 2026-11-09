@@ -20,11 +20,21 @@ export interface AnthropicOptions extends Partial<Pick<RequestOptions, 'thinking
   maxRetries?: number
   /** 中转服务可能只认旧版本，所以做成选项。 */
   anthropicVersion?: string
+  /**
+   * 调试用，默认关闭：看到实际发出的请求体和响应头。事件日志里没有这些，
+   * 而"provider 到底收到了什么"（比如中转站是否改了系统提示）只有这里知道。
+   * 不包含 API key（它只在请求头里，这里不给）。
+   */
+  trace?: (e: TraceEvent) => void
   // 可注入，便于离线测试。
   fetch?: typeof fetch
   sleep?: RetryOptions['sleep']
   random?: RetryOptions['random']
 }
+
+export type TraceEvent =
+  | { type: 'request'; url: string; body: string }
+  | { type: 'response'; status: number; headers: Record<string, string> }
 
 const abortError = () => new DOMException('Aborted', 'AbortError')
 
@@ -49,6 +59,10 @@ export function anthropicModel(name: string, o: AnthropicOptions = {}): ModelPor
         return
       }
 
+      // trace 是调试钩子：它抛错不能影响请求。
+      const trace = (e: TraceEvent) => { try { o.trace?.(e) } catch { /* ignore */ } }
+      trace({ type: 'request', url, body })
+
       let res: Response
       try {
         res = await fetchWithRetry(doFetch, url, {
@@ -61,6 +75,9 @@ export function anthropicModel(name: string, o: AnthropicOptions = {}): ModelPor
         if (e instanceof ApiError) { yield errorChunk(e.info.code, e.message, e.info.retryable); return }
         throw e // 取消和意外异常原样抛
       }
+      const headers: Record<string, string> = {}
+      res.headers.forEach((v, k) => { headers[k] = v })
+      trace({ type: 'response', status: res.status, headers })
       if (!res.body) { yield errorChunk('model_error', 'response has no body', true); return }
 
       try {

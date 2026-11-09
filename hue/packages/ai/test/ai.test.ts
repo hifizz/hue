@@ -367,3 +367,16 @@ test('集成（真 core loop）：HTTP 401 → turn 以 error 结束，错误码
   let r; while (true) { const n = await g.next(); if (n.done) { r = n.value; break } }
   assert.equal(r.reason, 'error'); assert.equal(r.error?.code, 'model_error'); assert.equal(r.error?.source, 'ai:anthropic'); assert.equal(r.error?.retryable, false)
 })
+
+// ═════════ trace 钩子 ═════════
+
+test('trace：给出实际发出的请求体和响应头，不含 API key；钩子抛错不影响请求', async () => {
+  const seen: Array<{ type: string; [k: string]: unknown }> = []
+  const { m } = modelWith([sseResponse(reply([textBlock(0, 'ok')], 'end_turn', 1), { headers: { 'request-id': 'req_9' } })], { trace: e => { seen.push(e); throw new Error('boom') } })
+  const cs = await collect(m.stream(req([userText('q')], { instructions: 'SYS' }), signal()))
+  assert.equal(cs.at(-1)!.type, 'finish')
+  assert.deepEqual(seen.map(e => e.type), ['request', 'response'])
+  assert.equal(JSON.parse(seen[0]!.body as string).system[0].text, 'SYS'); assert.match(seen[0]!.url as string, /\/v1\/messages$/)
+  assert.equal(seen[1]!.status, 200); assert.equal((seen[1]!.headers as Record<string, string>)['request-id'], 'req_9')
+  assert.ok(!JSON.stringify(seen).includes('k-test'))
+})
