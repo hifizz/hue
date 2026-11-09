@@ -17,10 +17,19 @@ npx tsx --env-file=.env.local examples/agent.ts <仓库目录> "<任务>" [会�
 - `HUE_SANDBOX=local`：不隔离，命令以你的用户身份运行，`bash` 每次都停下来问 y/N。要在交互式终端里运行。
 - 没有 policy 包。
 
+## 回放查看器
+
+```bash
+npx tsx examples/replay.ts                     # 列出 ./hue.db 里的会话
+npx tsx examples/replay.ts ./hue.db <会话id>   # 打印时间线
+```
+
+按时间线显示每步模型耗时和 token（含缓存读写）、每次工具调用与结果、你批准等了多久、被拒绝和失败的调用，末尾给出合计和缓存命中率。只读日志，不依赖别的包。
+
 ## 测试
 
 ```bash
-node --import tsx --test examples/agent.test.ts   # 5 个；npm test 不包含它
+node --import tsx --test examples/*.test.ts      # agent 5 个 + replay 3 个；npm test 不包含它
 npx tsc -p examples
 ```
 
@@ -34,4 +43,4 @@ npx tsc -p examples
 - 模型自己说"系统提示里写的工作目录是 /tmp/magpie-claude-work-65532"，而我们的 `INSTRUCTIONS` 里没有这个路径，来源不明（中转站或模型），没有排查。
 - 还没有在真实仓库里修过真实 bug。
 - 默认联网：容器里的命令能把副本里的内容发出去，副本里有密钥时要用 `HUE_NETWORK=none`。
-- 没有回放查看器，观测靠手动查 `hue.db`。
+- 回放查看器只用构造的事件和一份演示会话验证过格式；日志里没有发给模型的原始请求，所以"系统提示里的路径从哪来"这类问题仍查不了。
