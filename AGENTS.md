@@ -6,7 +6,7 @@ Hue：由 13 个小包组成的 Agent Harness（TypeScript，ESM，Node ≥ 20.3
 ```
 docs/    设计文档（中文）。入口 docs/README.md
 notes/   定位、品牌、内容策略笔记
-hue/     代码（npm workspaces，packages/*）。目前有 packages/core、packages/ai（仅 Anthropic）
+hue/     代码（npm workspaces，packages/*）。目前有 packages/core、packages/ai（仅 Anthropic）、packages/tools（仅内置工具）
 hue/learn/  教学版 agent loop，一课一目录，自包含，不依赖 @hue/core。入口 hue/learn/README.md
 ```
 文档和代码在同一个 git 仓库里，改接口时一次提交同时改两边。
@@ -74,6 +74,6 @@ packages/<包>/
 - 不说"比 Pi / Claude Code 更好"，说"把 harness 13 层亲手写一遍，每层讲取舍"。
 
 ## 当前状态
-core 完成（loop 测试、合同自测、崩溃扫描共 28 个，约 900 行）。第 1 波 6 个包里 `ai` 已实现（仅 Anthropic，OpenAI 未做；真实 API 合同待在线跑），tools 内置、tools MCP、store、policy、sandbox 有任务书，尚未实现。路线见 `docs/03-roadmap.md`。
+core 完成（loop 测试、合同自测、崩溃扫描共 28 个，约 900 行）。第 1 波 6 个包里 `ai` 已实现（仅 Anthropic，OpenAI 未做；真实 API 合同待在线跑），`tools` 内置工具已实现（未接真实模型和 sandbox），tools MCP、store、policy、sandbox 有任务书，尚未实现。路线见 `docs/03-roadmap.md`。
 
-**当前优先级（2026-11-06 决定）：先让一个 agent 能跑，再回头吃透 core。** 顺序见根目录 `README.md`。在 `@hue/tools`、`@hue/store` 出现之前，core 单独不能用，写文档和示例时不要把它说成可直接使用的框架。
+**当前优先级（2026-11-06 决定）：先让一个 agent 能跑，再回头吃透 core。** 顺序见根目录 `README.md`。在 `@hue/store` 出现之前，core 单独不能用，写文档和示例时不要把它说成可直接使用的框架。

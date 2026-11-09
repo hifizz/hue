@@ -1,0 +1,9 @@
+{
+  "name": "@hue/tools",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Hue tools: built-in coding tools (read/list/glob/grep/edit/write/bash). All I/O goes through ctx.sandbox. Zero runtime deps.",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": { "@hue/core": "*" }
+}
