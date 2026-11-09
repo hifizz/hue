@@ -21,7 +21,7 @@ export function ai(id: `${string}:${string}`, opts?: ProviderOptions): ModelPort
 - pi-ai：统一多家 provider TODO(verify)
 
 ## 结论
-<!-- 探索后回填：选了什么、为什么、代价、对应 ADR -->
+手写 fetch + SSE，先只做 Anthropic；决定记录见 `hue/packages/ai/DECISIONS.md`。
 
 ## 验收
 同一配方切换两家模型无需改其他代码

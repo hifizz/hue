@@ -1,0 +1,9 @@
+{
+  "name": "@hue/ai",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Hue ai: provider adapters that implement core's ModelPort. Hand-written fetch + SSE, zero runtime deps.",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": { "@hue/core": "*" }
+}
