@@ -132,6 +132,14 @@ test('client：请求的 URL、头、体', async () => {
   assert.equal(calls[0]!.body.model, 'claude-test'); assert.equal(calls[0]!.body.stream, true)
 })
 
+test('client：baseURL 带不带 /v1 都拼出同一个地址', async () => {
+  for (const base of ['https://relay.example.com/v1', 'https://relay.example.com/v1/', 'https://relay.example.com']) {
+    const { model, calls } = modelWith([ok()], { baseURL: base })
+    await collect(model.stream(req(), signal()))
+    assert.equal(calls[0]!.url, 'https://relay.example.com/v1/messages', base)
+  }
+})
+
 test('client：默认 API 版本和默认域名', async () => {
   const { model, calls } = modelWith([ok()])
   await collect(model.stream(req(), signal()))
@@ -309,10 +317,11 @@ test('端到端：529 重试成功对 loop 完全透明', async () => {
 
 // ═════════ 真实 API（有 key 才跑）═════════
 
-const key = process.env.ANTHROPIC_API_KEY
-test('真实 API：文本回复 + 工具往返 + 第 2 次请求被接受', { skip: key ? false : 'no ANTHROPIC_API_KEY' }, async () => {
+// 优先读网关变量（hue/.env.local），回退到 Anthropic 官方变量名。加载：node --env-file=.env.local ...
+const key = process.env.AI_GATEWAY_API_KEY || process.env.ANTHROPIC_API_KEY
+test('真实 API：文本回复 + 工具往返 + 第 2 次请求被接受', { skip: key ? false : 'no AI_GATEWAY_API_KEY / ANTHROPIC_API_KEY' }, async () => {
   const model = anthropicModel({
-    apiKey: key!, baseURL: process.env.ANTHROPIC_BASE_URL, model: process.env.HUE_LIVE_MODEL ?? 'claude-haiku-5-5',
+    apiKey: key!, baseURL: process.env.AI_GATEWAY_BASE_URL || process.env.ANTHROPIC_BASE_URL, model: process.env.HUE_LIVE_MODEL ?? 'claude-haiku-5-5',
     maxTokens: 4000, thinking: { type: 'adaptive', display: 'summarized' },
   })
   const [, r] = await drain(streamingLoop({ model, system: 'Use the echo tool once with {"word":"hue"}, then say done.', tools: [echo], prompt: 'go', maxSteps: 4 }))

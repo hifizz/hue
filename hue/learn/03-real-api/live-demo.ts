@@ -1,13 +1,14 @@
-// 运行：cd hue && ANTHROPIC_API_KEY=... npx tsx learn/03-real-api/live-demo.ts
-// 可选环境变量：ANTHROPIC_BASE_URL（中转）、HUE_LIVE_MODEL（默认 claude-haiku-5-5）
+// 运行：cd hue && npx tsx --env-file=.env.local learn/03-real-api/live-demo.ts
+// 读 AI_GATEWAY_API_KEY / AI_GATEWAY_BASE_URL（回退到 ANTHROPIC_API_KEY / ANTHROPIC_BASE_URL）；
+// 可选 HUE_LIVE_MODEL（默认 claude-haiku-5-5）。
 // 会产生一次很小的真实 API 调用（两步，几百个输出 token）。没有 key 时只打印提示就退出。
 import type { Tool } from '../01-minimal-loop/loop.js'
 import { streamingLoop } from '../02-streaming/loop.js'
 import { anthropicModel } from './client.js'
 
-const apiKey = process.env.ANTHROPIC_API_KEY
+const apiKey = process.env.AI_GATEWAY_API_KEY || process.env.ANTHROPIC_API_KEY
 if (!apiKey) {
-  console.log('没有设置 ANTHROPIC_API_KEY，跳过。离线行为见 real-api.test.ts。')
+  console.log('没有设置 AI_GATEWAY_API_KEY（或 ANTHROPIC_API_KEY），跳过。离线行为见 real-api.test.ts。')
   process.exit(0)
 }
 
@@ -23,7 +24,7 @@ const calc: Tool = {
 
 const model = anthropicModel({
   apiKey,
-  baseURL: process.env.ANTHROPIC_BASE_URL,
+  baseURL: process.env.AI_GATEWAY_BASE_URL || process.env.ANTHROPIC_BASE_URL,
   model: process.env.HUE_LIVE_MODEL ?? 'claude-haiku-5-5',
   maxTokens: 4000, // thinking 的 token 也算在里面，别设太小
   thinking: { type: 'adaptive', display: 'summarized' },

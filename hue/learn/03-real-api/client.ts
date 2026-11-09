@@ -27,7 +27,8 @@ export interface AnthropicModelOptions extends RequestOptions {
 
 export function anthropicModel(o: AnthropicModelOptions): StreamingModel {
   const doFetch = o.fetch ?? fetch
-  const url = `${(o.baseURL ?? 'https://api.anthropic.com').replace(/\/+$/, '')}/v1/messages`
+  // 中转的地址常写成 https://host/v1，官方 SDK 的习惯是不带 /v1；两种写法都接受，避免拼出 /v1/v1/messages。
+  const url = `${(o.baseURL ?? 'https://api.anthropic.com').replace(/\/+$/, '').replace(/\/v1$/, '')}/v1/messages`
   const fail = (message: string, code: 'context_overflow' | 'model_error', retryable: boolean): Chunk => ({ type: 'error', message, code, retryable })
 
   return {
