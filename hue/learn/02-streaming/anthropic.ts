@@ -27,7 +27,7 @@ import type { SSEMessage } from './sse.js'
 /** 每个正在进行的内容块，在 stop 之前要记住什么。 */
 type OpenBlock =
   | { kind: 'text' }
-  | { kind: 'thinking'; signature?: string }
+  | { kind: 'thinking'; signature?: string; redactedData?: string }
   | { kind: 'tool'; callId: string; name: string; json: string }
   | { kind: 'ignored' } // 不认识的块类型（比如 server_tool_use）：安静地跳过，不要崩
 
@@ -55,7 +55,10 @@ export async function* toChunks(events: AsyncIterable<SSEMessage>): AsyncGenerat
       case 'content_block_start': {
         const b = ev.content_block
         if (b.type === 'text') blocks.set(ev.index, { kind: 'text' })
-        else if (b.type === 'thinking' || b.type === 'redacted_thinking') blocks.set(ev.index, { kind: 'thinking' })
+        else if (b.type === 'thinking') blocks.set(ev.index, { kind: 'thinking' })
+        // redacted_thinking 没有 thinking_delta，内容是加密的 data，在 start 里一次给全。
+        // 必须存下来原样发回，否则多轮工具循环会被 400（官方文档：过滤时 redacted_thinking 也要带上）。
+        else if (b.type === 'redacted_thinking') blocks.set(ev.index, { kind: 'thinking', redactedData: b.data })
         else if (b.type === 'tool_use') blocks.set(ev.index, { kind: 'tool', callId: b.id, name: b.name, json: '' })
         else blocks.set(ev.index, { kind: 'ignored' })
         break
@@ -80,7 +83,9 @@ export async function* toChunks(events: AsyncIterable<SSEMessage>): AsyncGenerat
         blocks.delete(ev.index)
         if (block?.kind === 'thinking') {
           // 签名必须带上，否则下一轮这个推理块发回去会被拒绝。
-          const meta: ProviderMetadata | undefined = block.signature ? { anthropic: { signature: block.signature } } : undefined
+          const meta: ProviderMetadata | undefined = block.signature
+            ? { anthropic: { signature: block.signature } }
+            : block.redactedData != null ? { anthropic: { redactedData: block.redactedData } } : undefined
           yield { type: 'reasoning-end', providerMetadata: meta }
         } else if (block?.kind === 'tool') {
           yield { type: 'tool-call', callId: block.callId, name: block.name, input: parseToolInput(block.json) }
@@ -101,7 +106,10 @@ export async function* toChunks(events: AsyncIterable<SSEMessage>): AsyncGenerat
 
       case 'error':
         // 流已经开始（HTTP 200 已发出），所以错误是作为事件来的，不是 HTTP 状态码。
-        yield { type: 'error', message: `${ev.error?.type}: ${ev.error?.message}` }
+        yield {
+          type: 'error', message: `${ev.error?.type}: ${ev.error?.message}`, code: 'model_error',
+          retryable: ['overloaded_error', 'api_error', 'rate_limit_error', 'timeout_error'].includes(ev.error?.type),
+        }
         return
 
       // ping（保活）以及将来新增的事件类型：文档要求"优雅忽略"。

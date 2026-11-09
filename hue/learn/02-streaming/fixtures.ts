@@ -39,6 +39,11 @@ export const thinkingBlock = (index: number, thinking: string, signature: string
   delta(index, { type: 'signature_delta', signature }), // 签名在 stop 之前才到
   stop(index),
 ]
+/** 被遮蔽的推理：没有 delta，加密内容 data 在 start 里一次给全。 */
+export const redactedBlock = (index: number, data: string): Wire[] => [
+  start(index, { type: 'redacted_thinking', data }),
+  stop(index),
+]
 /** input 传字符串时原样当 JSON 文本切碎（可用来构造被截断的 JSON）；传对象则先 stringify。 */
 export const toolBlock = (index: number, id: string, name: string, input: Json | string, fragment = 5): Wire[] => {
   const json = typeof input === 'string' ? input : input && Object.keys(input as object).length === 0 ? '' : JSON.stringify(input)

@@ -45,7 +45,9 @@ export type Chunk =
   | { type: 'tool-input-delta'; callId: string; name: string; delta: string }
   | { type: 'tool-call'; callId: string; name: string; input: Json }
   | { type: 'finish'; finishReason: FinishReason; usage: Usage }
-  | { type: 'error'; message: string }
+  // code / retryable 是第 3 课加的可选字段：loop 目前只用 message，但适配器要把"为什么失败"说清楚
+  // （core 里超窗靠 context_overflow 触发压缩重试）。
+  | { type: 'error'; message: string; code?: 'context_overflow' | 'model_error'; retryable?: boolean }
 
 export interface StreamingModel {
   stream(request: ModelRequest, signal: AbortSignal): AsyncIterable<Chunk>

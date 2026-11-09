@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import type { Tool } from '../01-minimal-loop/loop.js'
 import { parseToolInput, toChunks } from './anthropic.js'
-import { chunkModel, messageDelta, messageStart, messageStop, ping, reply, textBlock, thinkingBlock, toolBlock, toSSEText, packets, wireModel } from './fixtures.js'
+import { chunkModel, messageDelta, messageStart, messageStop, ping, redactedBlock, reply, textBlock, thinkingBlock, toolBlock, toSSEText, packets, wireModel } from './fixtures.js'
 import { drain, streamingLoop } from './loop.js'
 import { parseSSE } from './sse.js'
 import type { Chunk, Message, ToolMessage } from './types.js'
@@ -65,6 +65,18 @@ test('适配器：推理块 → reasoning-end 带上签名', async () => {
   const end = chunks.find(c => c.type === 'reasoning-end') as Extract<Chunk, { type: 'reasoning-end' }>
   assert.deepEqual(end.providerMetadata, { anthropic: { signature: 'SIG_abc' } })
   assert.ok(chunks.findIndex(c => c.type === 'reasoning-end') < chunks.findIndex(c => c.type === 'text-delta'))
+})
+
+test('适配器：redacted_thinking → reasoning-end 带上加密 data（否则多轮会断）', async () => {
+  const chunks = await chunksOf(reply([redactedBlock(0, 'ENC_DATA'), textBlock(1, '答案')], 'end_turn', 9), 10)
+  const end = chunks.find(c => c.type === 'reasoning-end') as Extract<Chunk, { type: 'reasoning-end' }>
+  assert.deepEqual(end.providerMetadata, { anthropic: { redactedData: 'ENC_DATA' } })
+})
+
+test('适配器：流中途 error 事件带 code，并按类型标注是否可重试', async () => {
+  const run = async (type: string) => (await chunksOf([messageStart(), { type: 'error', error: { type, message: 'm' } }], 30)).at(-1) as Extract<Chunk, { type: 'error' }>
+  assert.deepEqual([(await run('overloaded_error')).retryable, (await run('invalid_request_error')).retryable], [true, false])
+  assert.equal((await run('overloaded_error')).code, 'model_error')
 })
 
 test('适配器：usage 的 output_tokens 是累计值，覆盖而不是累加', async () => {
