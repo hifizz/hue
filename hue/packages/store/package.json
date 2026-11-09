@@ -1,0 +1,9 @@
+{
+  "name": "@hue/store",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Hue store: append-only event log (memory and SQLite via node:sqlite). Zero runtime deps.",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": { "@hue/core": "*" }
+}
