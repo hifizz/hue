@@ -7,7 +7,7 @@ import { sqliteStore, listSessions } from '@hue/store'
 import { fold, isDurable, runTurn } from '@hue/core'
 
 const store = sqliteStore('./hue.db')
-const state = fold(sessionId, await Array.fromAsync(store.read(sessionId)))   // 续写：从日志重建
+const state = fold(sessionId, await readAll(store.read(sessionId)))   // 续写：从日志重建
 const turn = runTurn({ sessionId, state, /* … */ })
 for (let n = await turn.next(); !n.done; n = await turn.next()) {
   if (isDurable(n.value)) await store.append([n.value])           // 拉取即落盘：下一次 next() 之前先写
