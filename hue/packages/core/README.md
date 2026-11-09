@@ -12,13 +12,36 @@ core 不发网络请求、不读写文件、不认识任何具体模型或数据
 
 设计动机和取舍见 [docs/packages/core.md](../../../docs/packages/core.md)。本文是使用手册。
 
+## 状态与定位（先读这一段）
+
+**core 是内核规范加参考实现，不是可以直接拿来做 agent 的框架。** 单独安装它，你得不到一个能用的 agent。
+
+它自己不含这些东西，下面的示例因此用的都是假模型和手写的内存存储：
+
+| 要跑真实 agent 还差 | 对应的包 | 现状 |
+|---|---|---|
+| 调真实模型 | `@hue/ai` | 未实现 |
+| 真实工具（bash、读写文件、MCP） | `@hue/tools` | 未实现 |
+| 持久化事件 | `@hue/store` | 未实现 |
+| 把它们装配起来 | `@hue/runtime` | 未实现 |
+
+**适合读它的人：** 想给某个端口写实现的人；想看清 harness 内核（loop、事件日志、崩溃恢复）怎么设计的人。
+
+**不适合的人：** 想快速做出一个 agent 的人。请用 Pi、Claude Code 或 AI SDK，它们开箱即用。
+
+**它今天能证明什么：** 一个会产生副作用的 agent 被杀掉后，重启时能判断「哪些调用可能已经发生」。证据是 [test/crash-sweep.test.ts](test/crash-sweep.test.ts)，故事和边界见 [docs/application/portfolio-story.md](../../../docs/application/portfolio-story.md)。
+
+**什么时候变得可用：** 当 `@hue/ai`、`@hue/tools`、`@hue/store` 做出来、一个脚本能用它修好真实仓库里的 bug 时。顺序和理由见仓库根目录的 [README.md](../../../README.md)。
+
+下面的快速开始是为了让你**看懂 loop 怎么转**，不是接入教程。
+
 - 环境：TypeScript（`strict`）、ESM、Node ≥ 20.3
 - 代码：`src/` 约 900 行（预算 1000，`npm run budget` 检查）
 - 状态：v0.2，接口已冻结，改接口的流程见文末
 
 ---
 
-## 1. 快速开始：跑通一个 turn
+## 1. 看懂 loop 怎么转：跑通一个 turn（假模型，无需 API key）
 
 一个 **turn** 是「一条用户输入 → 若干步（模型调用 + 工具执行）→ 结束」。`runTurn()` 是一个 async generator，你一边消费它吐出的事件，它一边往前走。
 
@@ -506,7 +529,7 @@ toolContract(echoTool, { valid: { text: 'x' }, invalid: {} })
 ```bash
 cd hue
 npx tsc -p packages/core                              # 类型检查（strict）
-node --import tsx --test packages/core/test/*.test.ts # 11 个 loop 测试 + 合同自测
+node --import tsx --test packages/core/test/*.test.ts # 全部 core 测试：11 个 loop、14 个合同自测、3 个崩溃扫描
 npm run budget                                        # 行数预算
 ```
 
