@@ -38,8 +38,8 @@ node --import tsx --test packages/tools/test/*.test.ts   # 62 个，npm test 也
 
 ## 没验证的
 
-- **没接过真实模型。** 工具的 description 是否能让模型用对，只有跑 agent 才知道。
-- **没接过真正的 `@hue/sandbox`**（还没实现）。路径越界目前没有任何一层拦截，见 [DECISIONS.md](DECISIONS.md) 第 2 条。
+- 工具的 description 是否能让模型用对，只在一个 5 行的演示仓库上用真实模型试过两次（见 `examples/README.md`）。
+- 工具本身不拦路径越界，交给 sandbox（见 [DECISIONS.md](DECISIONS.md) 第 2 条）。`@hue/sandbox` 已实现，但 `local` 里的 `bash` 仍能 `cd` 出去，要隔离请用 `docker`。
 - **bash 没有权限控制**（policy 未实现），根目录 README 的里程碑文档要写明这点。
 - 30 KB 截断上限是经验值，没用真实任务调过。
 - 没有 MCP 部分；`src/index.ts` 只导出 builtin。

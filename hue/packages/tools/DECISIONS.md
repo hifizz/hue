@@ -20,8 +20,9 @@
 - **选了**：文件类工具（read/list/write/edit）只做 `posix.normalize`，相对路径接到 `cwd` 选项下；绝对路径不动。**不拦截越界**，越界交给 sandbox。
 - **为什么**：工具不是安全边界。在工具里写一套"是否越界"的检查，会和 sandbox 的检查重复，而且两处规则会漂移。
 - **例外**：`glob` / `grep` 不把相对路径接到 `cwd` 上，因为 `exec` 本来就在 `cwd` 里跑；保持相对路径，结果里的路径才短、模型才好读。
-- **代价**：用没有越界检查的 sandbox（如测试里的）时，`../../etc/passwd` 能读到。`@hue/sandbox` 还没实现，目前**没有任何一层拦截越界**。
-- **何时要改**：`@hue/sandbox` 落地后，补一个"工具 + 真 sandbox"的越界测试。
+- **代价**：用没有越界检查的 sandbox（如测试里的 fake）时，`../../etc/passwd` 能读到。
+- **更新**：`@hue/sandbox` 已实现，`local` 和 `docker` 的文件接口都会拦住越界和符号链接逃逸。`bash` 的命令本身在 `local` 里仍不受路径限制，只有 `docker` 把它关在容器里。
+- **何时要改**：补一个"工具 + 真 sandbox"的越界测试（`examples/agent.test.ts` 里已有一个 read 的）。
 
 ## 3. 截断策略
 

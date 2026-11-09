@@ -1,0 +1,9 @@
+{
+  "name": "@hue/sandbox",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Hue sandbox: SandboxPort implementations (local process, Docker CLI). Zero runtime deps.",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": { "@hue/core": "*" }
+}

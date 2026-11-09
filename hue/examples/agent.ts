@@ -3,8 +3,13 @@
  *
  *   cd hue && npx tsx --env-file=.env.local examples/agent.ts <仓库目录> "<任务>" [会话id]
  *
- * 没有 policy 包：bash 等 unsafe 工具每次都会停下来问你 y/n，这是现在唯一的安全措施。
+ * 默认在 Docker 容器里、仓库的一份克隆上运行（HUE_SANDBOX=docker）。HUE_SANDBOX=local 不隔离，bash 每次问你 y/n。
+ * 没有 policy 包。
  */
+import { execFileSync } from 'node:child_process'
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { createInterface } from 'node:readline/promises'
 import { pathToFileURL } from 'node:url'
 import { emptyState, fold, isDurable, repairDangling, runTurn, userText } from '@hue/core'
@@ -12,7 +17,7 @@ import type { HueEvent, InputPort, ModelPort, PolicyPort, SandboxPort, TurnResul
 import { model } from '@hue/ai'
 import { sqliteStore } from '@hue/store'
 import { codingTools } from '@hue/tools'
-import { localSandbox } from './local-sandbox.js'
+import { docker, local } from '@hue/sandbox'
 
 const INSTRUCTIONS = `You are a coding agent working in the current directory (a git repository).
 Every tool and shell command already runs in the repository root: use relative paths and never cd to another directory.
@@ -26,6 +31,8 @@ export interface AgentOptions {
   sessionId: string
   /** 问用户 y/n。测试里换成自动应答。 */
   ask: (prompt: string) => Promise<boolean>
+  /** 不可重复的工具（bash）是否每次都问。默认 true；跑在 docker 里时由调用方关掉。 */
+  confirmUnsafe?: boolean
   onEvent?: (e: HueEvent) => void
   signal?: AbortSignal
 }
@@ -41,8 +48,8 @@ export async function runAgent(o: AgentOptions): Promise<TurnResult> {
       const events = repairs.map((r, i) => ({ v: 1, id: crypto.randomUUID(), sessionId: o.sessionId, seq: state.lastSeq + 1 + i, at: Date.now(), ...r }) as HueEvent)
       await store.append(events); state = await load()
     }
-    // 没有 policy 包：不可重复的工具（bash）每次都问人。
-    const policy: PolicyPort = { specVersion: 'hue.policy.v1', decide: async c => c.effects === 'unsafe' ? { action: 'ask', prompt: `${c.tool} ${JSON.stringify(c.input)}` } : { action: 'allow' } }
+    // 没有 policy 包：默认不可重复的工具（bash）每次都问人。
+    const policy: PolicyPort = { specVersion: 'hue.policy.v1', decide: async c => c.effects === 'unsafe' && o.confirmUnsafe !== false ? { action: 'ask', prompt: `${c.tool} ${JSON.stringify(c.input)}` } : { action: 'allow' } }
     const inputPort: InputPort = { request: async r => (await o.ask(r.prompt)) ? { action: 'accept' } : { action: 'decline', reason: 'the user declined' } }
 
     const turn = runTurn({ sessionId: o.sessionId, state, input: userText(o.task), model: o.model, instructions: INSTRUCTIONS, tools: codingTools(), sandbox: o.sandbox, policy, inputPort, maxSteps: 40, signal: o.signal })
@@ -67,15 +74,38 @@ export function printer(out: (s: string) => void = s => process.stdout.write(s))
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const [dir, task, sessionId = crypto.randomUUID()] = process.argv.slice(2)
   if (!dir || !task) { console.error('用法: npx tsx --env-file=.env.local examples/agent.ts <仓库目录> "<任务>" [会话id]'); process.exit(2) }
-  // 每个 bash 都要人确认。没有终端（stdin 不是 TTY）时没人能回答，会永远卡在提示上：直接退出并说明。
-  if (!process.stdin.isTTY) { console.error('需要在交互式终端里运行：bash 每次都要你输入 y/N 确认，而当前 stdin 不是终端。请在 Terminal 面板里手动输入这条命令。'); process.exit(2) }
+  const mode = process.env.HUE_SANDBOX ?? 'docker' // docker | local
+  if (mode !== 'docker' && mode !== 'local') { console.error(`HUE_SANDBOX 只能是 docker 或 local，收到 "${mode}"`); process.exit(2) }
+  // local 模式每个 bash 都要人确认。没有终端（stdin 不是 TTY）时没人能回答，会永远卡在提示上：直接退出并说明。
+  if (mode === 'local' && !process.stdin.isTTY) { console.error('local 模式需要交互式终端：bash 每次都要你输入 y/N 确认，而当前 stdin 不是终端。请在 Terminal 面板里手动输入这条命令。'); process.exit(2) }
+
+  // docker 模式在仓库的一份克隆上干活，原仓库不动：agent 改坏了也只坏在副本里，你看完 diff 再决定采纳。
+  // 克隆只含已提交的内容；node_modules 不带（宿主的二进制依赖在 Linux 容器里跑不了），需要时让 agent 在容器里装。
+  let workdir = dir
+  if (mode === 'docker') {
+    if (process.env.HUE_COPY) workdir = process.env.HUE_COPY // 续聊：复用上次的副本
+    else {
+      const dirty = execFileSync('git', ['-C', dir, 'status', '--porcelain']).toString().trim()
+      if (dirty) console.warn('⚠ 原仓库有未提交的改动，副本里没有它们（副本是 git clone）。')
+      workdir = mkdtempSync(join(tmpdir(), 'hue-work-'))
+      execFileSync('git', ['clone', '-q', '--no-hardlinks', dir, workdir])
+    }
+    console.log(`在副本 ${workdir} 里工作（docker，镜像 ${process.env.HUE_IMAGE ?? 'node:22'}，网络 ${process.env.HUE_NETWORK ?? 'bridge'}）`)
+  }
+  const sandbox = mode === 'docker' ? await docker({ mount: workdir, image: process.env.HUE_IMAGE, network: process.env.HUE_NETWORK }) : await local({ root: workdir })
+
   const apiKey = process.env.AI_GATEWAY_API_KEY || process.env.ANTHROPIC_API_KEY
   const rl = createInterface({ input: process.stdin, output: process.stdout })
-  const result = await runAgent({
-    model: model(`anthropic:${process.env.HUE_MODEL ?? 'claude-sonnet-5-5'}`, { apiKey, baseURL: process.env.AI_GATEWAY_BASE_URL || process.env.ANTHROPIC_BASE_URL, thinking: { type: 'adaptive', display: 'summarized' } }),
-    sandbox: await localSandbox(dir), task, sessionId, db: process.env.HUE_DB ?? './hue.db',
-    ask: async p => /^y/i.test(await rl.question(`\n允许执行？ ${p} [y/N] `)), onEvent: printer(),
-  })
-  rl.close(); console.log(`会话 ${sessionId}（用同一个 id 可以接着聊）`)
+  let result
+  try {
+    result = await runAgent({
+      model: model(`anthropic:${process.env.HUE_MODEL ?? 'claude-sonnet-5-5'}`, { apiKey, baseURL: process.env.AI_GATEWAY_BASE_URL || process.env.ANTHROPIC_BASE_URL, thinking: { type: 'adaptive', display: 'summarized' } }),
+      sandbox, task, sessionId, db: process.env.HUE_DB ?? './hue.db',
+      confirmUnsafe: mode === 'local', // 在容器里不再逐条确认；local 没有隔离，仍然问
+      ask: async p => /^y/i.test(await rl.question(`\n允许执行？ ${p} [y/N] `)), onEvent: printer(),
+    })
+  } finally { rl.close(); if ('dispose' in sandbox) await (sandbox as { dispose(): Promise<void> }).dispose() }
+  console.log(`会话 ${sessionId}（续聊：同一个 id${mode === 'docker' ? ` 加 HUE_COPY=${workdir}` : ''}）`)
+  if (mode === 'docker') console.log(`看改动：git -C ${workdir} diff\n采纳到原仓库：git -C ${workdir} diff | git -C ${dir} apply`)
   process.exit(result.reason === 'stop' ? 0 : 1)
 }

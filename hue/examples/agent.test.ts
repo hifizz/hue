@@ -1,53 +1,15 @@
 import assert from 'node:assert/strict'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { execFileSync } from 'node:child_process'
 import { test } from 'node:test'
 import type { HueEvent, Message, ModelChunk, ModelPort } from '@hue/core'
-import { sandboxPortContract } from '@hue/core/contracts'
 import { sqliteStore } from '@hue/store'
 import { runAgent } from './agent.js'
-import { localSandbox } from './local-sandbox.js'
+import { docker, local } from '@hue/sandbox'
 
 const tmp = () => mkdtempSync(join(tmpdir(), 'hue-ex-'))
-const exec = (sb: Awaited<ReturnType<typeof localSandbox>>, cmd: string, o: object = {}) => sb.exec(cmd, o)
-
-// ═════════ 临时 sandbox ═════════
-const contractDir = tmp()
-sandboxPortContract('localSandbox', () => localSandbox(contractDir), { workdir: contractDir })
-
-test('localSandbox：../ 和符号链接都逃不出 root；不存在的新文件可以写', async () => {
-  const outside = tmp(); writeFileSync(join(outside, 'secret'), 's')
-  const root = tmp(); symlinkSync(outside, join(root, 'link'))
-  const sb = await localSandbox(root)
-  await assert.rejects(sb.readFile('../' + outside.split('/').pop() + '/secret'), /escapes the sandbox root/)
-  await assert.rejects(sb.readFile('link/secret'), /escapes the sandbox root/)
-  await assert.rejects(sb.writeFile('link/new', 'x'), /escapes the sandbox root/)
-  await assert.rejects(exec(sb, 'true', { cwd: '..' }), /escapes/)
-  await sb.writeFile('a/b/new.txt', 'ok'); assert.equal(readFileSync(join(root, 'a/b/new.txt'), 'utf8'), 'ok')
-})
-
-test('localSandbox：宿主环境变量（API key）在命令里看不到；显式传入的可以', async () => {
-  process.env.AI_GATEWAY_API_KEY_TEST = 'leak-me'
-  try {
-    const sb = await localSandbox(tmp())
-    assert.equal((await exec(sb, 'printf "[$AI_GATEWAY_API_KEY_TEST]"')).stdout, '[]')
-    assert.equal((await exec(sb, 'printf "$X"', { env: { X: 'y' } })).stdout, 'y')
-  } finally { delete process.env.AI_GATEWAY_API_KEY_TEST }
-})
-
-test('localSandbox：超时杀整个进程组，后台子进程也不留', async () => {
-  const sb = await localSandbox(tmp())
-  // 命令自己把后台进程的 pid 打印出来，测试再检查这个 pid 还在不在：不依赖 pgrep，也不会误伤别的进程。
-  // sleep 只睡 20 秒，万一检查失败留下的进程也会很快自己结束。
-  // 只杀 shell 时，存活的 sleep 还握着 stdout 管道，exec 要等它们结束才返回——所以耗时也是检查项。
-  const t0 = Date.now()
-  const r = await exec(sb, 'sleep 20 & echo $!; sleep 20', { timeoutMs: 300 })
-  assert.equal(r.timedOut, true); assert.ok(Date.now() - t0 < 5000, `exec took ${Date.now() - t0}ms: children kept the pipes open`)
-  const pid = Number(r.stdout.trim()); assert.ok(pid > 1, `no pid in stdout: ${JSON.stringify(r.stdout)}`)
-  await new Promise(r => setTimeout(r, 200))
-  assert.throws(() => process.kill(pid, 0), (e: any) => e?.code === 'ESRCH', `background process ${pid} survived the timeout`)
-})
 
 // ═════════ 里程碑脚本，用脚本化的假模型 ═════════
 const fin = (r: 'stop' | 'tool-calls'): ModelChunk => ({ type: 'finish', finishReason: r, usage: { inputTokens: 5, outputTokens: 5 } })
@@ -81,7 +43,7 @@ test('agent：读 → 改 → 跑测试 → 通过；bash 前问过人；整个�
     [call('c4', 'bash', { command: 'node test.js' }), fin('tool-calls')],
     [text('把 add 里的减号改成了加号，测试通过。'), fin('stop')],
   ])
-  const r = await runAgent({ model, sandbox: await localSandbox(dir), task: '修好 add', db, sessionId: 's1', ask: async p => { asked.push(p); return true } })
+  const r = await runAgent({ model, sandbox: await local({ root: dir }), task: '修好 add', db, sessionId: 's1', ask: async p => { asked.push(p); return true } })
   assert.equal(r.reason, 'stop'); assert.equal(r.steps, 5)
   assert.equal(readFileSync(join(dir, 'calc.js'), 'utf8'), 'exports.add = (a, b) => a + b\n')
   assert.equal(asked.length, 2); assert.ok(asked.every(p => p.startsWith('bash ')), 'read / edit 不问，只有 bash 问')
@@ -99,7 +61,7 @@ test('agent：读 → 改 → 跑测试 → 通过；bash 前问过人；整个�
 test('agent：用户拒绝 bash → 命令没有执行，模型收到被拒绝的结果', async () => {
   const dir = tmp(), db = join(tmp(), 'hue.db')
   const model = scripted([[call('c1', 'bash', { command: 'touch pwned' }), fin('tool-calls')], [text('好的，不执行。'), fin('stop')]])
-  const r = await runAgent({ model, sandbox: await localSandbox(dir), task: 'x', db, sessionId: 's', ask: async () => false })
+  const r = await runAgent({ model, sandbox: await local({ root: dir }), task: 'x', db, sessionId: 's', ask: async () => false })
   assert.equal(r.reason, 'stop'); assert.equal(existsSync(join(dir, 'pwned')), false)
   const result = JSON.stringify(model.requests[1]!.at(-1))
   assert.ok(/denied|declined/i.test(result), result)
@@ -108,7 +70,7 @@ test('agent：用户拒绝 bash → 命令没有执行，模型收到被拒绝�
 test('agent：越界路径被 sandbox 拦住，模型收到错误而不是文件内容', async () => {
   const dir = tmp(), db = join(tmp(), 'hue.db')
   const model = scripted([[call('c1', 'read', { path: '../../../etc/passwd' }), fin('tool-calls')], [text('读不了。'), fin('stop')]])
-  await runAgent({ model, sandbox: await localSandbox(dir), task: 'x', db, sessionId: 's', ask: async () => true })
+  await runAgent({ model, sandbox: await local({ root: dir }), task: 'x', db, sessionId: 's', ask: async () => true })
   const result = JSON.stringify(model.requests[1]!.at(-1))
   assert.ok(result.includes('escapes the sandbox root') && !/root:[x*]:/.test(result), result)
 })
@@ -127,11 +89,31 @@ test('agent：续写同一会话；上次死在工具执行中途 → 先补 cra
   ] as HueEvent[]); s.close()
 
   const model = scripted([[text('我看到上次的 deploy 中断了。'), fin('stop')]])
-  const r = await runAgent({ model, sandbox: await localSandbox(dir), task: '继续', db, sessionId: 's', ask: async () => true })
+  const r = await runAgent({ model, sandbox: await local({ root: dir }), task: '继续', db, sessionId: 's', ask: async () => true })
   assert.equal(r.reason, 'stop')
   const roles = model.requests[0]!.map(m => m.role)
   assert.deepEqual(roles, ['user', 'assistant', 'tool', 'user']) // 每个 tool-call 都有配对的 tool-result
   assert.match(JSON.stringify(model.requests[0]![2]), /crashed|unknown/i)
   const log = await all(db, 's')
   assert.deepEqual(log.map(e => e.seq), log.map((_, i) => i + 1))
+})
+
+const dockerUp = (() => { try { execFileSync('docker', ['info'], { stdio: 'ignore', timeout: 15_000 }); return true } catch { return false } })()
+
+test('agent 在 docker 里：bash 在容器内执行且不再逐条询问，edit 经挂载目录落到宿主上', { skip: dockerUp ? false : 'docker is not available', timeout: 90_000 }, async () => {
+  const dir = tmp(), db = join(tmp(), 'hue.db'), asked: string[] = []
+  writeFileSync(join(dir, 'greet.sh'), 'echo hello\n')
+  const sandbox = await docker({ mount: dir, image: process.env.HUE_TEST_IMAGE ?? 'alpine:3' })
+  try {
+    const model = scripted([
+      [call('c1', 'edit', { path: 'greet.sh', old_string: 'hello', new_string: 'hi' }), fin('tool-calls')],
+      [call('c2', 'bash', { command: 'sh greet.sh; id -u; pwd' }), fin('tool-calls')],
+      [text('done'), fin('stop')],
+    ])
+    const r = await runAgent({ model, sandbox, task: 'x', db, sessionId: 's', confirmUnsafe: false, ask: async p => { asked.push(p); return true } })
+    assert.equal(r.reason, 'stop'); assert.deepEqual(asked, [])
+    assert.equal(readFileSync(join(dir, 'greet.sh'), 'utf8'), 'echo hi\n')
+    const out = JSON.stringify(model.requests[2]!.at(-1))
+    assert.ok(out.includes('hi\\n') && out.includes('/work') && !out.includes('\\n0\\n'), out) // 在容器里执行、不是 root
+  } finally { await sandbox.dispose() }
 })
