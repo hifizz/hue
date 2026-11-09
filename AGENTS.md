@@ -7,6 +7,7 @@ Hue：由 13 个小包组成的 Agent Harness（TypeScript，ESM，Node ≥ 20.3
 docs/    设计文档（中文）。入口 docs/README.md
 notes/   定位、品牌、内容策略笔记
 hue/     代码（npm workspaces，packages/*）。目前只有 packages/core
+hue/learn/  教学版 agent loop，一课一目录，自包含，不依赖 @hue/core。入口 hue/learn/README.md
 ```
 文档和代码在同一个 git 仓库里，改接口时一次提交同时改两边。
 
@@ -22,6 +23,8 @@ npm install
 npm test                      # node:test + tsx，全仓测试
 npx tsc -p packages/<包>      # 单包严格类型检查
 npm run budget                # 每包 src/ 行数预算
+npx tsc -p learn              # learn/ 类型检查
+node --import tsx --test learn/*/*.test.ts   # learn/ 的测试（npm test 不包含它们）
 ```
 `npm run check`（`tsc -b`）目前不能用：`hue/` 根目录没有 `tsconfig.json`。在补上之前用 `npx tsc -p packages/<包>`。
 

@@ -132,7 +132,7 @@ export async function* agentLoop(o: LoopOptions): AsyncGenerator<LoopEvent, Loop
  *   - API 要求每个 tool-call 都必须有一个 tool-result，少一个下一次请求就会 400。
  *   - 模型看到错误信息后常常能自己纠正（换个参数、换个工具），抛错就丢掉了这个机会。
  */
-async function runTool(tools: Tool[], call: ToolCallPart, signal: AbortSignal): Promise<ToolResultPart> {
+export async function runTool(tools: Tool[], call: ToolCallPart, signal: AbortSignal): Promise<ToolResultPart> {
   const fail = (text: string): ToolResultPart => ({ type: 'tool-result', callId: call.callId, name: call.name, text, isError: true })
   const tool = tools.find(t => t.name === call.name)
   if (!tool) return fail(`Unknown tool "${call.name}". Available: ${tools.map(t => t.name).join(', ')}`)
