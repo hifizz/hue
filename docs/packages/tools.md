@@ -46,7 +46,7 @@ interface McpOptions {
   - 可选 OTel 追踪：`traceparent` / `tracestate` / `baggage`（给 @hue/telemetry 用）
 - server 在每个 result 的 `_meta` 里带 `io.modelcontextprotocol/serverInfo`。
 - 实现：一个 `withMeta(req)` 包装，所有请求都过它；client 端不持有任何协议会话状态。
-- DECIDE: clientCapabilities 求职版声明什么（候选：只声明 MRTR 能处理的 input 类型 + 空 extensions）
+- DONE: clientCapabilities 求职版声明什么——只声明 elicitation 表单（tools DECISIONS 第 6 条）（候选：只声明 MRTR 能处理的 input 类型 + 空 extensions）
 
 ### 2. server/discover：版本选择与探测
 - server **必须**实现 `server/discover`，返回支持的协议版本、capabilities、身份。
@@ -65,7 +65,7 @@ interface McpOptions {
 - 取代了 server 主动发起的 `roots/list`、`sampling/createMessage`、`elicitation/create`。
 - Hue 映射：`input_required` → 发 HueEvent（如 `tool.input_required`）→ 由 `onInputRequired` 处理（交给 policy / 用户 / 自动回答）→ 重发。
 - TODO(deep): MRTR 和 loop 的关系——等待用户输入期间这轮 tool.call 算挂起还是结束？打断时怎么收尾？最多重试几轮防死循环？
-- DECIDE: 求职版支持哪些 input 类型（候选：只做 elicitation 表单类，sampling 直接拒绝）
+- DONE: 求职版 input 类型——只做 elicitation 表单类，其它返回明确的错误
 
 ### 5. 列表结果可缓存
 - `tools/list`、`prompts/list`、`resources/list`、`resources/read`、`resources/templates/list` 必带 `ttlMs` 和 `cacheScope`（`public` / `private`）。
@@ -96,7 +96,7 @@ interface McpOptions {
    - result 缺 `resultType` 一律按 `complete`
    - server 主动发来的 `roots/list` / `sampling/createMessage` / `elicitation/create`：求职版一律回错误，或只对 elicitation 做简单适配
 3. 两种模式对上层暴露同一个 `McpClient` 接口，差异全部关在一个 `legacy.ts` 里。
-- DECIDE: 回退是否默认开启（候选：默认开，因为现实中的 server 大多还没升级）
+- DONE: 回退默认开（tools DECISIONS 第 7 条）
 - TODO(verify): 选 2 个真实 server，确认各自实现的是哪个版本；官方 SDK 当前版本是否已支持 2026-07-28
 
 ### 8. 测试计划
@@ -111,7 +111,10 @@ interface McpOptions {
 - 官方 @modelcontextprotocol/sdk 作为对照答案
 
 ## 结论
-<!-- 探索后回填：选了什么、为什么、代价、对应 ADR -->
+MCP client 已实现（`hue/packages/tools/src/mcp/`，取舍见该包 DECISIONS.md 第 5–11 条），按 2026-07-28 规范读自 modelcontextprotocol.io（2026-11-10）：
+- `mcp.stdio` / `mcp.http` 返回 `Capability`；先 `server/discover`，对面不是新协议就回退到 2025-11-25 握手（差异关在 `legacy.ts`）；每个请求自带 `_meta`；缺 `resultType` 按 complete。
+- clientCapabilities 只声明表单类 elicitation；MRTR 交给 `ctx.requestInput`，最多 5 轮；断流时只读 / 幂等的工具用新 ID 重发一次，unsafe 的告诉模型结果未知；annotations → effects（可覆盖、可不信）。
+- 还没做：连真实 server（filesystem、github）和官方 SDK 的报文对照——目前只对着测试里自带的 mock server 测过；工具结果太大怎么办；MCP 工具等待用户填表时的超时。
 
 ## 验收
 能连上 2 个真实 MCP server（如 filesystem、github），至少覆盖一个 2026-07-28 版和一个 2025-11-25 版（走回退）；MCP client 不依赖官方 SDK；有协议级测试

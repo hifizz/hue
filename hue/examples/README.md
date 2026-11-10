@@ -29,6 +29,17 @@ npx tsx examples/replay.ts ./hue.db <会话id>   # 打印时间线
 
 按时间线显示每步模型耗时和 token（含缓存读写）、每次工具调用与结果、你批准等了多久、被拒绝和失败的调用，末尾给出合计和缓存命中率。只读日志，不依赖别的包。
 
+## 连真实的 MCP server
+
+```bash
+cd hue
+npx tsx examples/mcp-smoke.ts stdio npx -y @modelcontextprotocol/server-filesystem /some/dir
+npx tsx examples/mcp-smoke.ts --call list_directory '{"path":"/some/dir"}' stdio npx -y @modelcontextprotocol/server-filesystem /some/dir
+npx tsx examples/mcp-smoke.ts http https://example.com/mcp --header "Authorization: Bearer …"
+```
+
+打印对面说哪一代协议（2026-07-28 还是回退到 2025-11-25）、有哪些工具和推断出的 effects，可选地调一个工具；server 要填表时在终端里问你。**这是 `@hue/tools` 的 MCP client 唯一碰真实 server 的办法，还没有人跑过。**
+
 ## 评测
 
 ```bash
