@@ -4,16 +4,16 @@
 
 它同时是一份求职作品集：目标是把 harness 的每一层亲手写一遍，并讲清每层的取舍。它不声称比 Pi 或 Claude Code 更好。只要一个编码 agent，请直接用它们。
 
-## 现在做到哪（2026-11-06）
+## 现在做到哪（2026-11-10）
 
 | | 状态 |
 |---|---|
 | `@hue/core`：类型、事件合同、六个端口、loop | 已写好（v0.2），28 个测试通过 |
-| `@hue/ai`、`@hue/tools`、`@hue/store`、`@hue/runtime` 等其余包 | 未开始，任务书在 `docs/tasks/wave-1/` |
+| `@hue/ai`、`tools`、`store`、`sandbox`、`policy`、`context`、`runtime` | 已实现，各自有测试；其余包（skills、memory、eval、gateway、telemetry、tools 的 MCP）未开始，任务书在 `docs/tasks/wave-1/` |
 | 教学版 loop，两课 | 已写好，`hue/learn/` |
-| **一个能跑的 agent** | **还没有** |
+| **一个能跑的 agent** | `hue/examples/agent.ts`：在 5 行的演示仓库上用真实模型修好过 bug；**真实仓库上的真实 bug 还没验证** |
 
-最后一行是现在最要紧的事实：core 单独不能用，因为没有真实模型、真实工具和持久化。`hue/packages/core/README.md` 的开头对此有说明。
+最后一行是现在最要紧的事实：只在玩具仓库上验证过。core 单独仍然不能用，要经 `@hue/runtime` 接上模型、工具和持久化。`hue/packages/core/README.md` 的开头对此有说明。
 
 ## 接下来的顺序：先让它能跑，再吃透
 

@@ -1,6 +1,6 @@
 # examples/ — 里程碑脚本
 
-用 `@hue/ai` + `@hue/tools` + `@hue/store` + `@hue/sandbox` + `@hue/core` 拼成一个能改代码的 agent。这是 runtime 出现之前的临时组装，不是产品。
+经 `@hue/runtime` 把 `@hue/ai` + `tools` + `store` + `sandbox` + `policy` + `context` 拼成一个能改代码的 agent。这是演示脚本，不是产品。
 
 ```bash
 cd hue

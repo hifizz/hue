@@ -1,5 +1,5 @@
 /**
- * 里程碑脚本：ai + tools + store + core 拼成一个能改代码的 agent（runtime 之前的临时组装）。
+ * 里程碑脚本：ai + tools + store + sandbox + policy + context 经 @hue/runtime 拼成一个能改代码的 agent。
  *
  *   cd hue && npx tsx --env-file=.env.local examples/agent.ts <仓库目录> "<任务>" [会话id]
  *
@@ -12,14 +12,15 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline/promises'
 import { pathToFileURL } from 'node:url'
-import { emptyState, fold, isDurable, repairDangling, runTurn, userText } from '@hue/core'
-import type { ContextStrategy, HueEvent, InputPort, ModelPort, PolicyPort, SandboxPort, TurnResult } from '@hue/core'
+import type { ContextStrategy, HueEvent, InputPort, ModelPort, PolicyPort, SandboxPort } from '@hue/core'
 import { model } from '@hue/ai'
 import { sqliteStore } from '@hue/store'
 import { codingTools } from '@hue/tools'
 import { docker, local } from '@hue/sandbox'
 import { presets, rules } from '@hue/policy'
 import { chain, foldToolResults, summarize } from '@hue/context'
+import { createAgent, drain } from '@hue/runtime'
+import type { RunResult } from '@hue/runtime'
 
 const INSTRUCTIONS = `You are a coding agent working in the current directory (a git repository).
 Every tool and shell command already runs in the repository root: use relative paths and never cd to another directory.
@@ -41,26 +42,14 @@ export interface AgentOptions {
   signal?: AbortSignal
 }
 
-export async function runAgent(o: AgentOptions): Promise<TurnResult> {
+export async function runAgent(o: AgentOptions): Promise<RunResult> {
   const store = sqliteStore(o.db)
   try {
-    const load = async () => { const events: HueEvent[] = []; for await (const e of store.read(o.sessionId)) events.push(e); return fold(o.sessionId, events) }
-    let state = await load()
-    // 上次进程死在工具执行中途：补上"崩溃"结果，否则下一次请求里 tool-call 没有配对的 tool-result，provider 会拒绝。
-    const repairs = repairDangling(state)
-    if (repairs.length) {
-      const events = repairs.map((r, i) => ({ v: 1, id: crypto.randomUUID(), sessionId: o.sessionId, seq: state.lastSeq + 1 + i, at: Date.now(), ...r }) as HueEvent)
-      await store.append(events); state = await load()
-    }
     const policy = o.policy ?? rules([{ effects: 'unsafe', action: 'ask' }], { default: 'allow' })
-    const inputPort: InputPort = { request: async r => (await o.ask(r.prompt)) ? { action: 'accept' } : { action: 'decline', reason: 'the user declined' } }
-
-    const turn = runTurn({ sessionId: o.sessionId, state, input: userText(o.task), model: o.model, instructions: INSTRUCTIONS, tools: codingTools(), sandbox: o.sandbox, policy, context: o.context, inputPort, maxSteps: 40, signal: o.signal })
-    for (let n = await turn.next(); ; n = await turn.next()) {
-      if (n.done) return n.value
-      if (isDurable(n.value)) await store.append([n.value]) // 拉取即落盘：下一次 next() 之前先写，tool.call 在工具执行前就已经在盘上
-      o.onEvent?.(n.value)
-    }
+    const input: InputPort = { request: async r => (await o.ask(r.prompt)) ? { action: 'accept' } : { action: 'decline', reason: 'the user declined' } }
+    // 落盘、崩溃恢复（补悬空工具调用的结果）、会话互斥都在 runtime 里；这里只负责把各包接起来。
+    const agent = createAgent({ model: o.model, store, instructions: INSTRUCTIONS, tools: codingTools(), sandbox: o.sandbox, policy, context: o.context, input, maxSteps: 40 })
+    return await drain(agent.run(o.task, { sessionId: o.sessionId, signal: o.signal }), o.onEvent)
   } finally { store.close() }
 }
 

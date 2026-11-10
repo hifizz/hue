@@ -1,0 +1,9 @@
+{
+  "name": "@hue/runtime",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Hue runtime: the one place where packages are assembled into an agent. Sessions, crash recovery, steer / interrupt, sub-agents.",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": { "@hue/core": "*" }
+}
