@@ -1,6 +1,7 @@
 /**
- * `hue` 命令入口：解析参数、加载环境、交给 recipe 跑一轮。
+ * `hue` 命令入口：解析参数、加载环境，交给 print 模式或交互 TUI。
  *
+ *   cd hue && ./packages/cli/bin/hue.mjs --sandbox local --yes
  *   cd hue && ./packages/cli/bin/hue.mjs -p --sandbox local --yes "<任务>"
  */
 import { existsSync } from 'node:fs'
@@ -17,12 +18,8 @@ export async function main(argv: string[]): Promise<number> {
     return 2
   }
   if (args.help) { console.log(usage); return 0 }
-  if (!args.print) {
-    console.error('目前只支持 -p / --print 模式（交互 TUI 还没做）。')
-    console.error(usage)
-    return 2
-  }
-  if (!args.prompt) {
+
+  if (args.print && !args.prompt) {
     console.error('请提供任务提示词。')
     console.error(usage)
     return 2
@@ -42,8 +39,16 @@ export async function main(argv: string[]): Promise<number> {
   process.on('SIGINT', onSig)
   process.on('SIGTERM', onSig)
   try {
-    const result = await runPrint({ args, signal: ac.signal })
-    return result.reason === 'stop' ? 0 : 1
+    if (args.print) {
+      const result = await runPrint({ args, signal: ac.signal })
+      return result.reason === 'stop' ? 0 : 1
+    }
+    if (!process.stdin.isTTY || !process.stdout.isTTY) {
+      console.error('交互模式需要 TTY。无界面请用 hue -p "<任务>"。')
+      return 2
+    }
+    const { runInteractive } = await import('./tui/interactive.js')
+    return await runInteractive({ args, signal: ac.signal })
   } finally {
     process.off('SIGINT', onSig)
     process.off('SIGTERM', onSig)

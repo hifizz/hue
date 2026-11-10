@@ -36,3 +36,19 @@ test('--help 不要求提示词', () => {
   assert.equal(a.help, true)
   assert.equal(a.prompt, undefined)
 })
+
+test('-c / --continue 和 --tui-mode', () => {
+  const a = parseArgs(['-c', '--tui-mode', 'regular'], '/tmp/work')
+  assert.equal(a.continueLast, true)
+  assert.equal(a.print, false)
+  assert.equal(a.tuiMode, 'regular')
+  assert.equal(a.prompt, undefined)
+})
+
+test('交互模式也可以带提示词；未知 tui-mode 会抛错', () => {
+  const a = parseArgs(['--continue', '接着做'], '/tmp/work')
+  assert.equal(a.continueLast, true)
+  assert.equal(a.prompt, '接着做')
+  assert.equal(a.tuiMode, 'fullscreen')
+  assert.throws(() => parseArgs(['--tui-mode', 'vim']), /只能是 fullscreen 或 regular/)
+})

@@ -4,9 +4,14 @@
   "type": "module",
   "private": true,
   "description": "Hue command-line entry: a thin recipe that assembles the packages into the `hue` command.",
-  "bin": { "hue": "./bin/hue.mjs" },
-  "exports": { ".": "./src/index.ts" },
+  "bin": {
+    "hue": "./bin/hue.mjs"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "dependencies": {
+    "@earendil-works/pi-tui": "1.5.2",
     "@hue/ai": "*",
     "@hue/context": "*",
     "@hue/core": "*",
