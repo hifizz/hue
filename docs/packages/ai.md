@@ -21,10 +21,14 @@ export function ai(id: `${string}:${string}`, opts?: ProviderOptions): ModelPort
 - pi-ai：统一多家 provider TODO(verify)
 
 ## 结论
-<!-- 探索后回填：选了什么、为什么、代价、对应 ADR -->
+- 选型（2026-11 交付）：不引 SDK。@hue/ai = fetch + 手写 SSE 解析 + Anthropic 事件折叠，产出 core 的 ModelChunk；运行时零第三方依赖（只有 @hue/core 类型）。
+- 为什么：包哲学是“一下午能读完”；Anthropic 的流式协议一个文件讲得清（learn/02-streaming 已验证过一遍），SDK 会把“事件→chunk”的关键黑盒藏起来。
+- 代价：换 provider 要再写一个文件；没有内建重试（错误带 retryable 标记上抛，策略归上层）；thinking 只做透传映射，不主动开启。
+- 细节与何时改：见 packages/ai/DECISIONS.md。接口按草图落地为 `ai(id): ModelPort | undefined`，缺凭据返回 undefined（合同测试 skip 用）。
 
 ## 验收
-同一配方切换两家模型无需改其他代码
+- 离线：11 字节切包回放（含中文切碎）→ `checkChunkStream` 通过；坏 JSON/断流都走 error 收尾。
+- 在线：`modelPortContract` 真实调用，无 `ANTHROPIC_API_KEY` 自动 skip（contracts.test.ts）。
 
 ## 对应 JD
 工程基本功

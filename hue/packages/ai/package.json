@@ -1,0 +1,13 @@
+{
+  "name": "@hue/ai",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Hue model adapters: Anthropic streaming provider -> core ModelPort. Zero runtime deps besides @hue/core types.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@hue/core": "*"
+  }
+}
