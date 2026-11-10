@@ -2,7 +2,7 @@
 import type { SlashCommand } from '@earendil-works/pi-tui'
 
 export const SLASH_COMMANDS: readonly SlashCommand[] = [
-  { name: 'model', description: 'Select model (opens selector UI)', argumentHint: '<provider/model>' },
+  { name: 'model', description: 'Show current model, or switch with /model <name>', argumentHint: '<name>' },
   { name: 'export', description: 'Export session (Markdown default, or specify path: .md/.jsonl)' },
   { name: 'copy', description: 'Copy last agent message to clipboard' },
   { name: 'name', description: 'Set session display name' },
@@ -45,4 +45,31 @@ export function parseShellBang(text: string): { command: string, sendToModel: bo
     return command ? { command, sendToModel: true } : undefined
   }
   return undefined
+}
+
+/** 按当前已输入的命令名决定补全结果，避免菜单前缀过期时把默认高亮项拼进去。 */
+export function resolveSlashCompletion(typed: string, selected: string): string {
+  if (!typed) return selected
+  if (SLASH_NAMES.has(typed)) return typed
+  if (SLASH_NAMES.has(selected) && selected.startsWith(typed)) return selected
+  const prefixes = [...SLASH_NAMES].filter(name => name.startsWith(typed))
+  if (prefixes.length === 1) return prefixes[0]
+  return typed
+}
+
+/** 在行首斜杠命令名上应用补全。前缀以当前行为准，不依赖可能过期的 autocompletePrefix。 */
+export function applySlashNameCompletion(
+  line: string,
+  cursorCol: number,
+  selected: string,
+): { line: string, cursorCol: number } | undefined {
+  const before = line.slice(0, cursorCol)
+  const after = line.slice(cursorCol)
+  const start = before.search(/\S/)
+  if (start < 0 || before[start] !== '/') return undefined
+  const body = before.slice(start + 1)
+  if (body.includes('/') || /\s/.test(body)) return undefined
+  const name = resolveSlashCompletion(body, selected)
+  const next = `${before.slice(0, start)}/${name} ${after}`
+  return { line: next, cursorCol: start + name.length + 2 }
 }

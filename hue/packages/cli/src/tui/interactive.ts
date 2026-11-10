@@ -6,7 +6,6 @@ import { execFileSync } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import {
-  CombinedAutocompleteProvider,
   Editor,
   Key,
   Markdown,
@@ -33,6 +32,7 @@ import type { SessionInfo } from '@hue/store'
 import type { RunCliOptions } from '../recipe.js'
 import { drain, gitBranch, openRecipe } from '../recipe.js'
 import { readLastSession, sessionName, writeLastSession, writeSessionName } from '../session.js'
+import { HueAutocompleteProvider } from './autocomplete.js'
 import { HOTKEYS, SLASH_COMMANDS, SLASH_NAMES, parseShellBang, parseSlash } from './commands.js'
 import { color, editorTheme, formatCwd, formatDuration, formatTokens, formatToolLine, markdownTheme, selectTheme } from './theme.js'
 
@@ -316,7 +316,7 @@ export async function runInteractive(opts: RunCliOptions): Promise<number> {
   const terminal = new ProcessTerminal()
   const tui: TUI = args.tuiMode === 'regular' ? new TuiMainScreen(terminal) : new TuiAltScreen(terminal)
   const editor = new Editor(tui, editorTheme)
-  editor.setAutocompleteProvider(new CombinedAutocompleteProvider([...SLASH_COMMANDS], args.cwd))
+  editor.setAutocompleteProvider(new HueAutocompleteProvider([...SLASH_COMMANDS], args.cwd))
 
   const scroll = new ScrollView(transcript, { follow: 'end', primary: true, scrollbar: 'auto' })
   const body = args.tuiMode === 'regular'
