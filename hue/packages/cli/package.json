@@ -1,0 +1,22 @@
+{
+  "name": "@hue/cli",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Hue command-line entry: a thin recipe that assembles the packages into the `hue` command.",
+  "bin": { "hue": "./bin/hue.mjs" },
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": {
+    "@hue/ai": "*",
+    "@hue/context": "*",
+    "@hue/core": "*",
+    "@hue/memory": "*",
+    "@hue/policy": "*",
+    "@hue/runtime": "*",
+    "@hue/sandbox": "*",
+    "@hue/skills": "*",
+    "@hue/store": "*",
+    "@hue/telemetry": "*",
+    "@hue/tools": "*"
+  }
+}
