@@ -13,7 +13,7 @@ export const memory: { file(dir: string): MemoryPort }  // 暴露 remember / rec
 ```
 
 ## 关键问题
-- DECIDE: 记忆形态——markdown 文件（可读、可编辑）vs 向量库 vs 两者。可读性符合 Hue 承诺
+- DONE: 记忆形态——只做 markdown 文件（DECISIONS 第 1 条）
 - TODO(deep): 什么时候写——模型主动调用 remember、会话结束反思、还是两者；如何防止写垃圾
 - TODO(deep): 召回——启动注入 vs 按需工具 vs 每轮自动检索；如何评估召回质量
 - LATER: 遗忘与冲突合并
@@ -24,7 +24,11 @@ export const memory: { file(dir: string): MemoryPort }  // 暴露 remember / rec
 - Claude Code CLAUDE.md / memory 工具 TODO(verify)
 
 ## 结论
-<!-- 探索后回填：选了什么、为什么、代价、对应 ADR -->
+已实现（`hue/packages/memory`，取舍见该包 DECISIONS.md）：
+- 形态：一条一个 markdown 文件（可读、可手改、可进 git），没有向量库。`file(dir)` 返回一个 `Capability`：索引进系统提示，`remember` / `recall` / `forget` 三个工具。
+- 写：只有模型主动调用；防垃圾靠硬规则（大小 / 条数 / 命名 / 疑似凭证拒绝 / 同名更新）。召回：索引常驻，正文按需，关键词打分（中文按字和相邻两字）。
+- 安全：笔记进提示，等于持久化的提示注入面；只有缓解（声明"不是指令"、`idempotent` 可被 policy 管、日志可查）。
+- 没做：真实模型下的验证、"两次会话"的 eval、召回质量评估、遗忘与合并。
 
 ## 验收
 跨两次会话能记住用户偏好并在 eval 里体现

@@ -1,0 +1,9 @@
+{
+  "name": "@hue/memory",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Hue memory: cross-session notes as markdown files, with remember / recall / forget tools and an index in the prompt.",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": { "@hue/core": "*" }
+}
