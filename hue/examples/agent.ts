@@ -53,6 +53,14 @@ export async function runAgent(o: AgentOptions): Promise<RunResult> {
   } finally { store.close() }
 }
 
+/** 模型、key、地址都从环境变量读（HUE_MODEL、AI_GATEWAY_* 或 ANTHROPIC_*）。 */
+export function modelFromEnv(trace?: (e: object) => void): ModelPort {
+  return model(`anthropic:${process.env.HUE_MODEL ?? 'claude-sonnet-5-5'}`, {
+    apiKey: process.env.AI_GATEWAY_API_KEY || process.env.ANTHROPIC_API_KEY, baseURL: process.env.AI_GATEWAY_BASE_URL || process.env.ANTHROPIC_BASE_URL,
+    thinking: { type: 'adaptive', display: 'summarized' }, trace,
+  })
+}
+
 /** 终端输出：流式文本 + 每个工具调用一行。 */
 export function printer(out: (s: string) => void = s => process.stdout.write(s)): (e: HueEvent) => void {
   return e => {
@@ -89,11 +97,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   // HUE_TRACE=文件：把实际发给 provider 的请求体和响应头逐行写进去（JSONL，不含 key）。排查"模型到底收到了什么"用。
   const traceFile = process.env.HUE_TRACE
   const trace = traceFile ? (e: object) => appendFileSync(traceFile, `${JSON.stringify({ at: Date.now(), sessionId, ...e })}\n`) : undefined
-  const apiKey = process.env.AI_GATEWAY_API_KEY || process.env.ANTHROPIC_API_KEY
   const rl = createInterface({ input: process.stdin, output: process.stdout })
   let result
   try {
-    const llm = model(`anthropic:${process.env.HUE_MODEL ?? 'claude-sonnet-5-5'}`, { apiKey, baseURL: process.env.AI_GATEWAY_BASE_URL || process.env.ANTHROPIC_BASE_URL, thinking: { type: 'adaptive', display: 'summarized' }, trace })
+    const llm = modelFromEnv(trace)
     result = await runAgent({
       model: llm,
       // 先折叠旧的大工具结果（不花钱、可恢复），不够再让同一个模型写摘要（长任务内部也能切，见 packages/context/DECISIONS.md 第 0 条）。

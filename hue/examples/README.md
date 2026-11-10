@@ -28,10 +28,18 @@ npx tsx examples/replay.ts ./hue.db <会话id>   # 打印时间线
 
 按时间线显示每步模型耗时和 token（含缓存读写）、每次工具调用与结果、你批准等了多久、被拒绝和失败的调用，末尾给出合计和缓存命中率。只读日志，不依赖别的包。
 
-## 测试
+## 评测
 
 ```bash
-node --import tsx --test examples/*.test.ts      # agent 5 个 + replay 3 个；npm test 不包含它
+cd hue
+npx tsx --env-file=.env.local examples/eval.ts [--tasks fix-off-by-one,add-slugify] [--trials 3] [--concurrency 2] [--out eval-report]
+```
+
+把 `@hue/eval` 的 5 个内置任务（小仓库 + 测试）交给 agent，每次试跑一个新的临时目录和执行环境（默认 Docker，`HUE_SANDBOX=local` 不隔离且策略是 `yolo`，只在清楚后果时用）。输出 `eval-report.md` / `.json`：成功率、token、耗时、按任务和标签、失败案例。每次试跑的完整日志在 `HUE_DB`（默认 `./eval.db`），用 `replay.ts` 看。
+
+
+```bash
+node --import tsx --test examples/*.test.ts      # agent、replay、eval；npm test 不包含它
 npx tsc -p examples
 ```
 

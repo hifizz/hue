@@ -1,0 +1,9 @@
+{
+  "name": "@hue/eval",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Hue eval: run an agent over a set of tasks, score each run with an objective check, report success rate, tokens, time and failure cases. Only reads events.",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": { "@hue/core": "*" }
+}

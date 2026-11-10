@@ -9,7 +9,7 @@
 | | 状态 |
 |---|---|
 | `@hue/core`：类型、事件合同、六个端口、loop | 已写好（v0.2），28 个测试通过 |
-| `@hue/ai`、`tools`、`store`、`sandbox`、`policy`、`context`、`runtime` | 已实现，各自有测试；其余包（skills、memory、eval、gateway、telemetry、tools 的 MCP）未开始，任务书在 `docs/tasks/wave-1/` |
+| `@hue/ai`、`tools`、`store`、`sandbox`、`policy`、`context`、`runtime`、`eval`（最小版：5 道题） | 已实现，各自有测试；其余包（skills、memory、gateway、telemetry、tools 的 MCP）未开始，任务书在 `docs/tasks/wave-1/` |
 | 教学版 loop，两课 | 已写好，`hue/learn/` |
 | **一个能跑的 agent** | `hue/examples/agent.ts`：在 5 行的演示仓库上用真实模型修好过 bug；**真实仓库上的真实 bug 还没验证** |
 
