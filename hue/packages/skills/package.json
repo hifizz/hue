@@ -1,0 +1,9 @@
+{
+  "name": "@hue/skills",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Hue skills: discover SKILL.md directories, put a one-line index in the prompt, load the full text on demand.",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": { "@hue/core": "*" }
+}
