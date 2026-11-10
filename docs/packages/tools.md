@@ -114,7 +114,8 @@ interface McpOptions {
 MCP client 已实现（`hue/packages/tools/src/mcp/`，取舍见该包 DECISIONS.md 第 5–11 条），按 2026-07-28 规范读自 modelcontextprotocol.io（2026-11-10）：
 - `mcp.stdio` / `mcp.http` 返回 `Capability`；先 `server/discover`，对面不是新协议就回退到 2025-11-25 握手（差异关在 `legacy.ts`）；每个请求自带 `_meta`；缺 `resultType` 按 complete。
 - clientCapabilities 只声明表单类 elicitation；MRTR 交给 `ctx.requestInput`，最多 5 轮；断流时只读 / 幂等的工具用新 ID 重发一次，unsafe 的告诉模型结果未知；annotations → effects（可覆盖、可不信）。
-- 还没做：连真实 server（filesystem、github）和官方 SDK 的报文对照——目前只对着测试里自带的 mock server 测过；工具结果太大怎么办；MCP 工具等待用户填表时的超时。
+- 真实 server 冒烟（2026-11-10，stdio）：filesystem 2.2.0 走 2026-07-28 并调用成功；2025.8.21 走回退，只列了工具没调用。
+- 还没做：HTTP 的真实 server（如 github）、回退路径上调用工具、官方 SDK 的报文对照——其余只对着测试里自带的 mock server 测过；工具结果太大怎么办；MCP 工具等待用户填表时的超时。
 
 ## 验收
 能连上 2 个真实 MCP server（如 filesystem、github），至少覆盖一个 2026-07-28 版和一个 2025-11-25 版（走回退）；MCP client 不依赖官方 SDK；有协议级测试
