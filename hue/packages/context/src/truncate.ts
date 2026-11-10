@@ -1,6 +1,5 @@
-import { userText } from '@hue/core'
 import type { ContextStrategy } from '@hue/core'
-import { pickCut } from './cut.js'
+import { pickCut, replacementFor } from './cut.js'
 import { strategy, type BudgetOptions } from './engine.js'
 import { textTokens } from './estimate.js'
 
@@ -9,6 +8,8 @@ export const TRUNCATED_NOTE = '[Earlier messages were removed to fit the context
 export interface TruncateOptions extends BudgetOptions {
   /** 至少保留最近几轮，默认 1（当前这一轮）。 */
   keepTurns?: number
+  /** 这些轮里最早的一轮允许从中间切（长任务），但切完至少还剩几步，默认 6。 */
+  keepSteps?: number
 }
 
 /**
@@ -17,7 +18,7 @@ export interface TruncateOptions extends BudgetOptions {
  */
 export function truncate(o: TruncateOptions = {}): ContextStrategy {
   return strategy('truncate', o, async ({ view, room }) => {
-    const cut = pickCut(view, room - textTokens(TRUNCATED_NOTE), o.keepTurns)
-    return cut === undefined ? undefined : { cut, replacement: [userText(TRUNCATED_NOTE)] }
+    const cut = pickCut(view, room - textTokens(TRUNCATED_NOTE), o.keepTurns, o.keepSteps)
+    return cut === undefined ? undefined : { cut, replacement: replacementFor(view, cut, TRUNCATED_NOTE) }
   })
 }

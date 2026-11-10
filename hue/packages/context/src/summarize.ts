@@ -1,6 +1,6 @@
 import { isAbort, userText } from '@hue/core'
 import type { ContextStrategy, Message, ModelPort, ModelRequest } from '@hue/core'
-import { pickCut } from './cut.js'
+import { pickCut, replacementFor } from './cut.js'
 import { strategy, type BudgetOptions } from './engine.js'
 import { textTokens } from './estimate.js'
 import { TRUNCATED_NOTE } from './truncate.js'
@@ -10,6 +10,8 @@ export interface SummarizeOptions extends BudgetOptions {
   model: ModelPort
   /** 至少保留最近几轮原文，默认 2。刚发生的事摘要最容易写丢细节，所以留原文。 */
   keepTurns?: number
+  /** 这些轮里最早的一轮允许从中间切（长任务），但切完至少还剩几步，默认 6。 */
+  keepSteps?: number
   /** 摘要最长多少 token，默认 1500。同时从目标里预留出这部分空间。 */
   summaryTokens?: number
 }
@@ -70,14 +72,14 @@ async function ask(model: ModelPort, transcript: string, maxTokens: number, sign
 export function summarize(o: SummarizeOptions): ContextStrategy {
   const summaryTokens = o.summaryTokens ?? 1500
   return strategy('summarize', o, async ({ view, room, signal }) => {
-    const cut = pickCut(view, room - summaryTokens, o.keepTurns ?? 2)
+    const cut = pickCut(view, room - summaryTokens, o.keepTurns ?? 2, o.keepSteps)
     if (cut === undefined) return undefined
     try {
       const text = await ask(o.model, render(view.slice(0, cut)), summaryTokens, signal)
-      if (text) return { cut, replacement: [userText(`[Summary of the earlier conversation. It replaces those messages.]\n\n${text}`)] }
+      if (text) return { cut, replacement: replacementFor(view, cut, `[Summary of the earlier conversation. It replaces those messages.]\n\n${text}`) }
     } catch (e) {
       if (signal.aborted || isAbort(e)) return undefined
     }
-    return { cut, replacement: [userText(TRUNCATED_NOTE)], strategy: 'summarize→truncate' }
+    return { cut, replacement: replacementFor(view, cut, TRUNCATED_NOTE), strategy: 'summarize→truncate' }
   })
 }

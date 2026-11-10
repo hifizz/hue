@@ -74,6 +74,6 @@ packages/<包>/
 - 不说"比 Pi / Claude Code 更好"，说"把 harness 13 层亲手写一遍，每层讲取舍"。
 
 ## 当前状态
-core 完成（loop 测试、合同自测、崩溃扫描共 28 个，约 900 行）。第 1 波 6 个包里 `ai` 已实现（仅 Anthropic，OpenAI 未做；真实 API 合同待在线跑），`tools` 内置工具已实现（未接真实模型和 sandbox），`store` 已实现（memory + sqlite，kill -9 测试通过），`sandbox` 已实现（local + docker，仅 macOS + OrbStack 验证），`policy` 已实现（规则 + 三个预设 + withGrants，白名单未经真实任务调过），`context` 已实现（三种压缩策略 + chain，摘要质量未测；truncate / summarize 在单条用户消息的长任务内无处可切），`runtime` 已实现（createAgent：落盘、崩溃恢复、steer / interrupt、子 agent 作为工具；`examples/agent.ts` 已改用它；排队式 steer 与真实模型下的子 agent 未验证），tools MCP 有任务书，尚未实现。路线见 `docs/03-roadmap.md`。
+core 完成（loop 测试、合同自测、崩溃扫描共 28 个，约 900 行）。第 1 波 6 个包里 `ai` 已实现（仅 Anthropic，OpenAI 未做；真实 API 合同待在线跑），`tools` 内置工具已实现（未接真实模型和 sandbox），`store` 已实现（memory + sqlite，kill -9 测试通过），`sandbox` 已实现（local + docker，仅 macOS + OrbStack 验证），`policy` 已实现（规则 + 三个预设 + withGrants，白名单未经真实任务调过），`context` 已实现（三种压缩策略 + chain，摘要质量未测；切点已放宽到工具结果之后，长任务内也能 truncate / summarize），`runtime` 已实现（createAgent：落盘、崩溃恢复、steer / interrupt、子 agent 作为工具；`examples/agent.ts` 已改用它；排队式 steer 与真实模型下的子 agent 未验证），tools MCP 有任务书，尚未实现。路线见 `docs/03-roadmap.md`。
 
 **当前优先级（2026-11-06 决定）：先让一个 agent 能跑，再回头吃透 core。** 顺序见根目录 `README.md`。在 runtime 和一个能跑的脚本出现之前，core 单独不能用，写文档和示例时不要把它说成可直接使用的框架。

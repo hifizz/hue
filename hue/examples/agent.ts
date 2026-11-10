@@ -96,7 +96,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     const llm = model(`anthropic:${process.env.HUE_MODEL ?? 'claude-sonnet-5-5'}`, { apiKey, baseURL: process.env.AI_GATEWAY_BASE_URL || process.env.ANTHROPIC_BASE_URL, thinking: { type: 'adaptive', display: 'summarized' }, trace })
     result = await runAgent({
       model: llm,
-      // 先折叠旧的大工具结果（不花钱、可恢复），不够再让同一个模型写摘要。摘要在一个长任务内部切不开，见 packages/context/DECISIONS.md 第 0 条。
+      // 先折叠旧的大工具结果（不花钱、可恢复），不够再让同一个模型写摘要（长任务内部也能切，见 packages/context/DECISIONS.md 第 0 条）。
       context: chain(foldToolResults(), summarize({ model: llm })),
       sandbox, task, sessionId, db: process.env.HUE_DB ?? './hue.db',
       policy: mode === 'docker' ? presets.yolo() : presets.coding(), // 容器是边界，不再逐条确认；local 没有隔离，按预设放行 / 拒绝 / 询问

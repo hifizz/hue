@@ -12,16 +12,16 @@ const context = chain(
 runTurn({ /* … */, context })
 ```
 
-| 策略 | 做什么 | 长任务内部能用吗 |
+| 策略 | 做什么 | 一条用户消息的长任务里 |
 |---|---|---|
 | `foldToolResults()` | 旧的大工具结果换成占位说明，最近 8 条原样 | **能** |
-| `truncate()` | 丢最早的几轮，换成一句说明 | 不能，只切在用户消息之前 |
-| `summarize({ model })` | 被丢的部分写成摘要，最近 2 轮原文 | 不能，同上 |
+| `truncate()` | 丢最早的几轮 / 几步，换成一句说明，任务原文保留 | 能，切在工具结果之后，至少留 6 步 |
+| `summarize({ model })` | 被丢的部分写成摘要，最近 2 轮原文，任务原文保留 | 能，同上 |
 | `chain(a, b, …)` | 依次试，前一个不够后一个接着压 | 取决于组成 |
 
-共同选项：`budget`（默认窗口的 80%）、`target`（默认预算的 50%）。估算按字符，故意偏高。
+共同选项：`budget`（默认窗口的 80%）、`target`（默认预算的 50%）；`truncate` / `summarize` 另有 `keepTurns`（最近几轮不动）和 `keepSteps`（切在一轮中间时至少剩几步，默认 6）。估算按字符，故意偏高。
 
-**要先知道的局限**：编码 agent 的一个任务通常只有一条用户消息，`truncate` / `summarize` 在这种长任务里无处可切，起作用的只有 `foldToolResults`。详见 [DECISIONS.md](DECISIONS.md) 第 0 条。
+**要先知道的局限**：`keepSteps` 是下限不是上限——最近 6 步里单个结果很大时，`truncate` 压不进预算，要先 `foldToolResults`。切点规则和取舍见 [DECISIONS.md](DECISIONS.md) 第 0 条。
 
 ## 测试
 
@@ -31,7 +31,7 @@ npx tsc -p packages/context
 node --import tsx --test packages/context/test/context.test.ts   # npm test 也会跑
 ```
 
-覆盖：估算、触发条件（预算 / 超窗重试）、三种策略、下标换算（在已压缩的视图上再压）、摘要失败回退、`chain`，以及两个用真 core `runTurn` 的集成（长任务窗口始终够用且 `fold(日志)` 等于 turn 的 state；模型报超窗后 loop 重来并成功）。
+覆盖：估算、触发条件（预算 / 超窗重试）、三种策略（含只有一条用户消息的长任务、任务原文带过去、二次压缩不叠加、任意预算和参数下的结构检查）、下标换算（在已压缩的视图上再压）、摘要失败回退、`chain`，以及两个用真 core `runTurn` 的集成（长任务窗口始终够用且 `fold(日志)` 等于 turn 的 state；模型报超窗后 loop 重来并成功）。
 
 ## 没验证的
 

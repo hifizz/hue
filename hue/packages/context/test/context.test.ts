@@ -80,9 +80,9 @@ test('truncate：压到目标以下；第一条是说明，后面是原样的最
   const out = await truncate().prepare(input(s))
   const c = out.compaction!
   assert.equal(c.strategy, 'truncate'); assert.ok(c.tokensAfter < c.tokensBefore); assert.ok(c.tokensAfter <= 400, String(c.tokensAfter))
-  assert.equal(textOf(out.messages[0]!), TRUNCATED_NOTE)
+  assert.ok(textOf(out.messages[0]!).trim().endsWith(TRUNCATED_NOTE))
   assert.deepEqual(out.messages.slice(1), t.slice(c.throughIndex)) // 保留的部分一个字都没动
-  assert.equal(out.messages[1]!.role, 'user'); assert.equal(c.throughIndex % 4, 0, '只在轮的边界切')
+  assert.ok(['user', 'assistant'].includes(out.messages[1]!.role)) // 切在轮边界，或切在某个工具结果之后
   assertPaired(out.messages)
   assert.deepEqual(JSON.parse(JSON.stringify(c)), c)
 })
@@ -97,7 +97,7 @@ test('truncate：压缩后的下一步在预算内，不会再压；之后继续
   const t2 = [...t, ...turns(4, 800, 6)]
   const second = await truncate().prepare(input(stateOf(t2, first)))
   assert.ok(second.compaction); assert.ok(second.compaction!.throughIndex > first.throughIndex)
-  assert.deepEqual(second.compaction!.replacement.map(textOf), [TRUNCATED_NOTE]) // 只有一条说明
+  assert.equal(second.compaction!.replacement.length, 1); assert.equal(textOf(second.compaction!.replacement[0]!).split(TRUNCATED_NOTE).length, 2) // 只有一条说明，没有叠加
   assert.deepEqual(second.messages.slice(1), t2.slice(second.compaction!.throughIndex))
 })
 
@@ -173,7 +173,7 @@ test('在 fold 之后再 truncate：切点落进旧 replacement 里时，through
   const out = await truncate({ keepTurns: 3, budget: 100 }).prepare(input(s1))
   const c = out.compaction!
   assert.equal(c.throughIndex, f.throughIndex, '切点在旧 replacement 里，transcript 的切点不变')
-  assert.equal(textOf(out.messages[0]!), TRUNCATED_NOTE)
+  assert.ok(textOf(out.messages[0]!).endsWith(TRUNCATED_NOTE))
   assert.deepEqual(out.messages.slice(1), view.slice(view.length - (out.messages.length - 1))) // 新视图 = 说明 + 旧视图的一个后缀
   assert.ok(out.messages.length - 1 >= 12) // 保留了 3 轮
   assertPaired(out.messages)
@@ -312,6 +312,94 @@ test('chain：谁都不需要压时原样返回', async () => {
   assert.equal(out.compaction, undefined); assert.deepEqual(out.messages, modelView(s))
 })
 
+// ═════════ 长任务：只有一条用户消息，切在工具结果之后 ═════════
+
+const TASK = 'FIX THE BUG in calc.js and make the tests pass'
+/** 一条用户消息 + n 步（assistant 调用工具 → 结果）。停在最后一个结果上，下一步就要调模型。 */
+const longTask = (n: number, chars = 800): Message[] =>
+  [userText(TASK), ...Array.from({ length: n }, (_, i) => [asst(`step ${i}`, `c${i}`), result(`c${i}`, `r${i}:`.padEnd(chars, 'x'))]).flat()]
+const assistants = (ms: readonly Message[]) => ms.filter(m => m.role === 'assistant').length
+
+test('长任务里 truncate 也能切：任务原文带过去，保留下来的从 assistant 开始，调用和结果不被拆开，至少剩 keepSteps 步', async () => {
+  const t = longTask(14) // ≈ 3400 token，窗口 1000
+  const out = await truncate().prepare(input(stateOf(t)))
+  const c = out.compaction!
+  assert.ok(c, '一条用户消息的长任务以前无处可切'); assert.ok(c.tokensAfter < c.tokensBefore)
+  assert.equal(out.messages[0]!.role, 'user')
+  assert.ok(textOf(out.messages[0]!).startsWith(TASK) && textOf(out.messages[0]!).endsWith(TRUNCATED_NOTE), textOf(out.messages[0]!))
+  assert.equal(out.messages[1]!.role, 'assistant'); assert.deepEqual(out.messages.slice(1), t.slice(c.throughIndex))
+  assert.ok(assistants(out.messages) >= 6, `${assistants(out.messages)} steps kept`)
+  assertPaired(out.messages); assert.deepEqual(modelView(withCompaction(stateOf(t), c)), out.messages)
+})
+
+test('keepSteps：切完至少剩这么多步；总共不够就不切', async () => {
+  const t = longTask(14)
+  const out = await truncate({ keepSteps: 10 }).prepare(input(stateOf(t)))
+  assert.equal(assistants(out.messages), 10)
+  const few = stateOf(longTask(4, 2000)) // 超了，但总共才 4 步 < 6
+  const none = await truncate().prepare(input(few))
+  assert.equal(none.compaction, undefined); assert.deepEqual(none.messages, modelView(few))
+})
+
+test('带过去的任务原文也算在预算里：任务很长时，切点要选得更靠后，压完仍在目标之内', async () => {
+  const t = [userText(`${TASK}: `.padEnd(900, 'k')), ...longTask(14).slice(1)] // 任务本身 ≈ 270 token
+  const out = await truncate({ keepSteps: 1 }).prepare(input(stateOf(t), { model: { id: 'm', info: info(2000) } }))
+  assert.ok(out.compaction!.tokensAfter <= 800, String(out.compaction!.tokensAfter)) // 目标 = 窗口 80% 的一半
+  assert.ok(textOf(out.messages[0]!).startsWith(TASK))
+})
+
+test('长任务里 summarize：摘要里有被丢掉的步骤，任务原文原样保留在摘要前面', async () => {
+  const t = longTask(14)
+  const model = summarizer([says('Read r0..r7, nothing fixed yet.')])
+  const out = await summarize({ model, summaryTokens: 100 }).prepare(input(stateOf(t)))
+  const c = out.compaction!
+  assert.equal(c.strategy, 'summarize'); assert.equal(out.messages[1]!.role, 'assistant')
+  assert.ok(textOf(out.messages[0]!).startsWith(TASK) && /Read r0\.\.r7/.test(textOf(out.messages[0]!)))
+  const body = textOf(model.requests[0]!.messages[0]!)
+  assert.ok(body.includes(TASK) && body.includes('[tool result: read]') && body.includes('step 0'))
+  assert.ok(!body.includes(`step ${13}`), '保留的最近几步不进摘要')
+  assert.ok(assistants(out.messages) >= 6); assertPaired(out.messages)
+  assert.deepEqual(modelView(withCompaction(stateOf(t), c)), out.messages)
+})
+
+test('长任务压第二次：任务原文只出现一次，说明不叠加，throughIndex 往后推，核心还原的和策略返回的一致', async () => {
+  const t = longTask(14)
+  const first = (await truncate().prepare(input(stateOf(t)))).compaction!
+  const t2 = [...t, ...longTask(14).slice(1).map(m => structuredClone(m))] // 又干了 14 步
+  const out = await truncate().prepare(input(stateOf(t2, first)))
+  const c = out.compaction!
+  assert.ok(c && c.throughIndex > first.throughIndex)
+  const head = textOf(out.messages[0]!)
+  assert.equal(head.split(TASK).length, 2, 'task once'); assert.equal(head.split(TRUNCATED_NOTE).length, 2, 'one note')
+  assertPaired(out.messages); assert.deepEqual(modelView(withCompaction(stateOf(t2, first), c)), out.messages)
+})
+
+test('长任务里有 steer 插话：最近一条用户消息（插话）作为任务带过去', async () => {
+  const t = [...longTask(8), userText('also update the README'), ...longTask(8).slice(1)]
+  const out = await truncate({ budget: 600 }).prepare(input(stateOf(t)))
+  const head = textOf(out.messages[0]!)
+  assert.ok(out.compaction && out.messages[1]!.role !== 'tool')
+  // 切点在插话之前就带原任务，在插话之后就带插话；两种情况开头都得有一条真实的用户指令
+  assert.ok(head.startsWith(TASK) || head.startsWith('also update the README'), head)
+  assertPaired(out.messages)
+})
+
+test('任意预算下，truncate / summarize 的结果都满足 provider 的结构要求', async () => {
+  const models = [longTask(20), turns(6, 600), [...longTask(6), ...turns(2, 600), ...longTask(9)]]
+  for (const t of models) for (const budget of Array.from({ length: 38 }, (_, i) => 100 + i * 40)) for (const keepTurns of [1, 2]) for (const keepSteps of [1, 6]) {
+    for (const s of [truncate({ budget, keepTurns, keepSteps }), summarize({ model: summarizer([says('S')]), budget, keepTurns, keepSteps, summaryTokens: 20 })]) {
+      const state = stateOf(t); const out = await s.prepare(input(state))
+      const ctx = `${s.name} budget=${budget} keepTurns=${keepTurns} keepSteps=${keepSteps} len=${t.length}`
+      assertPaired(out.messages)
+      assert.notEqual(out.messages[0]!.role, 'tool', ctx); assert.notEqual(out.messages[0]!.role, 'assistant', ctx)
+      if (out.compaction) {
+        assert.ok(['user', 'assistant'].includes(out.messages[1]!.role), ctx)
+        assert.deepEqual(modelView(withCompaction(state, out.compaction)), out.messages, ctx)
+      }
+    }
+  }
+})
+
 // ═════════ 和真 core 的 runTurn 配合 ═════════
 
 const big: Tool = { name: 'big', description: 'returns a lot of text', inputSchema: { type: 'object' }, effects: 'none', async execute() { return textResult('y'.repeat(3000)) } }
@@ -360,4 +448,26 @@ test('集成（真 core loop）：模型报超窗 → loop 带 overflowed 重来
   assert.equal(r.reason, 'stop')
   assert.equal(requests.length, 2); assert.ok(requests[0]! > 1000 && requests[1]! <= 1000, JSON.stringify(requests))
   assert.equal(events.filter(e => e.type === 'context.compacted').length, 1)
+})
+
+const mid: Tool = { name: 'mid', description: 'returns some text', inputSchema: { type: 'object' }, effects: 'none', async execute() { return textResult('y'.repeat(700)) } }
+test('集成（真 core loop）：只有一条用户消息的长任务，只用 truncate 也能压；每次请求都带着任务原文，fold(日志) 等于 state', async () => {
+  const requests: Message[][] = []; let n = 0
+  const model: ModelPort = {
+    specVersion: 'hue.model.v1', id: 'mock:1', info: info(2000),
+    async *stream(req) {
+      requests.push(structuredClone(req.messages)); n++
+      yield n <= 24 ? { type: 'tool-call', callId: `c${n}`, name: 'mid', input: {} } : { type: 'text-delta', text: 'finished' }
+      yield { type: 'finish', finishReason: n <= 24 ? 'tool-calls' : 'stop', usage }
+    },
+  }
+  const { events, result: r } = await run(runTurn({ sessionId: 's', state: emptyState('s'), input: userText(TASK), model, tools: [mid], maxSteps: 40, context: truncate() }))
+  assert.equal(r.reason, 'stop'); assert.equal(r.steps, 25)
+  assert.ok(events.filter(e => e.type === 'context.compacted').length >= 2, 'compacted more than once')
+  for (const [i, ms] of requests.entries()) {
+    assertPaired(ms); assert.ok(messagesTokens(ms) <= 2000, `request ${i + 1}: ${messagesTokens(ms)} tokens`)
+    assert.ok(textOf(ms[0]!).includes(TASK), `request ${i + 1} lost the task`)
+  }
+  const json = (x: unknown) => JSON.parse(JSON.stringify(x))
+  assert.deepEqual(json(fold('s', events.filter(isDurable))), json(r.state))
 })
