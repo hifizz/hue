@@ -11,8 +11,7 @@
 - LATER
 
 ## @hue/gateway
-- HTTP / WebSocket / IM 接入，把 Agent 事件流推给客户端
-- LATER
+- 已实现骨架,设计见 `gateway.md`,代码 `hue/packages/gateway`(HTTP + SSE + 签名 webhook;没做 WebSocket)
 
 ## @hue/telemetry
 - 订阅事件 → OpenTelemetry span（gen_ai 语义约定 TODO(verify)）

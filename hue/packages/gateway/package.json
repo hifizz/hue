@@ -1,0 +1,9 @@
+{
+  "name": "@hue/gateway",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Hue gateway: HTTP + SSE access to an agent (send, steer, interrupt, approve) and a signed webhook channel for IM. Zero runtime deps beyond node:http.",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": { "@hue/core": "*" }
+}

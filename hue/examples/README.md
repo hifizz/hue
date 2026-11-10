@@ -40,6 +40,15 @@ npx tsx examples/mcp-smoke.ts http https://example.com/mcp --header "Authorizati
 
 打印对面说哪一代协议（2026-07-28 还是回退到 2025-11-25）、有哪些工具和推断出的 effects，可选地调一个工具；server 要填表时在终端里问你。**这是 `@hue/tools` 的 MCP client 唯一碰真实 server 的办法，还没有人跑过。**
 
+## HTTP 接入(gateway)
+
+```bash
+cd hue
+HUE_GATEWAY_TOKEN=$(openssl rand -hex 32) npx tsx --env-file=.env.local examples/gateway.ts <仓库目录>
+```
+
+把 agent 放到 HTTP 后面(默认 `127.0.0.1:8787`,Docker 沙箱直接挂载 `<仓库目录>`,**改动落在原目录上**)。接口、curl / JS 示例、IM webhook 和部署清单见 [`packages/gateway/INTEGRATION.md`](../packages/gateway/INTEGRATION.md)。**这个脚本只通过了类型检查,还没有真正启动过**;`examples/gateway.test.ts` 用真实 runtime + policy + sqlite 和脚本化模型测了同样的装配。
+
 ## 评测
 
 ```bash

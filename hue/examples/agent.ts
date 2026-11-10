@@ -24,7 +24,7 @@ import { createAgent, drain } from '@hue/runtime'
 import { fromDir as skillsDir } from '@hue/skills'
 import type { RunResult } from '@hue/runtime'
 
-const INSTRUCTIONS = `You are a coding agent working in the current directory (a git repository).
+export const INSTRUCTIONS = `You are a coding agent working in the current directory (a git repository).
 Every tool and shell command already runs in the repository root: use relative paths and never cd to another directory.
 Find the cause before changing anything: read the code and run the tests. Make the smallest change that fixes the problem, then re-run the tests to confirm. Say what you changed and why.`
 

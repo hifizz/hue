@@ -23,7 +23,7 @@
 - `02-architecture.md` 13 层 → 包、依赖方向、事件合同、组装方式
 - `03-roadmap.md` 3 周切片与之后
 - `04-challenges.md` 重点、难点、挑战与越过方法、面试追问、每周检查点
-- `packages/*.md` 每个包一页（求职版：core, ai, tools, store, context, skills, memory, runtime, eval；后置：deferred.md）
+- `packages/*.md` 每个包一页（求职版：core, ai, tools, store, context, skills, memory, runtime, eval；另有 gateway 骨架；后置：deferred.md）
 - `research/teardown-framework.md` 横评维度与 5 家对比表
 - `application/kit.md` 投递包清单；`application/resume-rewrite.md` 简历改写
 - `decisions/ADR-000-template.md` 决策记录模板
