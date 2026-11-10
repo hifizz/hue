@@ -1,0 +1,9 @@
+{
+  "name": "@hue/telemetry",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Hue telemetry: turn the event log into OpenTelemetry GenAI spans and export them over OTLP/HTTP JSON. Only reads events; zero runtime deps beyond node:crypto and fetch.",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": { "@hue/core": "*" }
+}

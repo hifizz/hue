@@ -15,6 +15,8 @@ import { pathToFileURL } from 'node:url'
 import type { Capability, ContextStrategy, HueEvent, InputPort, ModelPort, PolicyPort, SandboxPort } from '@hue/core'
 import { model } from '@hue/ai'
 import { sqliteStore } from '@hue/store'
+import { observeStore, telemetry as makeTelemetry } from '@hue/telemetry'
+import type { Telemetry } from '@hue/telemetry'
 import { codingTools } from '@hue/tools'
 import { docker, local } from '@hue/sandbox'
 import { presets, rules } from '@hue/policy'
@@ -44,17 +46,20 @@ export interface AgentOptions {
   context?: ContextStrategy
   onEvent?: (e: HueEvent) => void
   signal?: AbortSignal
+  /** 给了就把每个落盘的事件同时交给它(span 导出);flush / shutdown 由调用方负责。 */
+  telemetry?: Telemetry
 }
 
 export async function runAgent(o: AgentOptions): Promise<RunResult> {
-  const store = sqliteStore(o.db)
+  const db = sqliteStore(o.db)
+  const store = o.telemetry ? observeStore(db, o.telemetry) : db
   try {
     const policy = o.policy ?? rules([{ effects: 'unsafe', action: 'ask' }], { default: 'allow' })
     const input: InputPort = { request: async r => (await o.ask(r.prompt)) ? { action: 'accept' } : { action: 'decline', reason: 'the user declined' } }
     // 落盘、崩溃恢复（补悬空工具调用的结果）、会话互斥都在 runtime 里；这里只负责把各包接起来。
     const agent = createAgent({ model: o.model, store, instructions: INSTRUCTIONS, tools: codingTools(), sandbox: o.sandbox, policy, context: o.context, capabilities: o.capabilities, input, maxSteps: 40 })
     return await drain(agent.run(o.task, { sessionId: o.sessionId, signal: o.signal }), o.onEvent)
-  } finally { store.close() }
+  } finally { db.close() }
 }
 
 /** 模型、key、地址都从环境变量读（HUE_MODEL、AI_GATEWAY_* 或 ANTHROPIC_*）。 */
@@ -101,6 +106,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   // HUE_TRACE=文件：把实际发给 provider 的请求体和响应头逐行写进去（JSONL，不含 key）。排查"模型到底收到了什么"用。
   const traceFile = process.env.HUE_TRACE
   const trace = traceFile ? (e: object) => appendFileSync(traceFile, `${JSON.stringify({ at: Date.now(), sessionId, ...e })}\n`) : undefined
+  // HUE_OTLP=http://localhost:4318/v1/traces：把这次运行导出成 OpenTelemetry GenAI trace（OTLP/HTTP JSON）。工具参数和结果默认不导出，HUE_OTLP_CONTENT=1 才带。
+  const tel = process.env.HUE_OTLP ? makeTelemetry({ url: process.env.HUE_OTLP, serviceName: 'hue', captureContent: process.env.HUE_OTLP_CONTENT === '1', onError: e => console.error(`[telemetry] ${e.message}`) }) : undefined
   const rl = createInterface({ input: process.stdin, output: process.stdout })
   let result
   try {
@@ -113,9 +120,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       capabilities: [...(process.env.HUE_SKILLS ? [skillsDir(process.env.HUE_SKILLS.split(':'))] : []), ...(process.env.HUE_MEMORY ? [memoryDir(process.env.HUE_MEMORY)] : [])],
       sandbox, task, sessionId, db: process.env.HUE_DB ?? './hue.db',
       policy: mode === 'docker' ? presets.yolo() : presets.coding(), // 容器是边界，不再逐条确认；local 没有隔离，按预设放行 / 拒绝 / 询问
-      ask: async p => /^y/i.test(await rl.question(`\n${p} [y/N] `)), onEvent: printer(),
+      ask: async p => /^y/i.test(await rl.question(`\n${p} [y/N] `)), onEvent: printer(), telemetry: tel,
     })
-  } finally { rl.close(); if ('dispose' in sandbox) await (sandbox as { dispose(): Promise<void> }).dispose() }
+  } finally { rl.close(); await tel?.shutdown(AbortSignal.timeout(10_000)); if ('dispose' in sandbox) await (sandbox as { dispose(): Promise<void> }).dispose() }
   console.log(`会话 ${sessionId}（续聊：同一个 id${mode === 'docker' ? ` 加 HUE_COPY=${workdir}` : ''}）`)
   if (mode === 'docker') console.log(`看改动：git -C ${workdir} diff\n采纳到原仓库：git -C ${workdir} diff | git -C ${dir} apply`)
   process.exit(result.reason === 'stop' ? 0 : 1)

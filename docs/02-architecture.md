@@ -14,7 +14,7 @@
 | sandbox | @hue/sandbox | 接口 | 隔离执行 |
 | subagents | @hue/runtime | ✅ | 子 agent / 排队 / 打断 / 恢复 |
 | gateway | @hue/gateway | 骨架 | HTTP + SSE + 签名 webhook 接入(WebSocket 未做) |
-| telemetry | @hue/telemetry | LATER | OTel 导出（横切） |
+| telemetry | @hue/telemetry | ✅ 最小 | 事件 → OTel GenAI span,OTLP/HTTP 导出（横切） |
 | eval | @hue/eval | ✅ 最小 | 任务集 + 跑分（横切） |
 
 ## 依赖方向（硬规则）

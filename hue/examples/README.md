@@ -18,6 +18,7 @@ npx tsx --env-file=.env.local examples/agent.ts <仓库目录> "<任务>" [会�
 - `HUE_TRACE=trace.jsonl`：把实际发给模型的请求体和响应头逐行写进文件（不含 key）。事件日志里没有这些，想知道"中转站有没有改系统提示"就看它。文件里有完整的提示和代码内容，别提交。
 - 上下文用 `@hue/context`：`chain(foldToolResults(), summarize({ model }))`，估算超过窗口 80% 就压。长任务里只有折叠真正起作用，见 `packages/context/DECISIONS.md` 第 0 条。
 - `HUE_SKILLS=目录[:目录]`、`HUE_MEMORY=目录`：启用 `@hue/skills` / `@hue/memory`（不设就不启用）。技能和笔记在宿主上读写，不经过沙箱；笔记会进系统提示，见 `packages/memory/DECISIONS.md` 第 4 条。
+- `HUE_OTLP=http://localhost:4318/v1/traces`：把这次运行导出成 OpenTelemetry GenAI trace（`@hue/telemetry`，OTLP/HTTP JSON）；`HUE_OTLP_CONTENT=1` 才带工具参数和结果。退出前会等发完（最多 10 秒）。**没对着真实 collector 试过。**
 - 策略用 `@hue/policy`：docker 模式 `presets.yolo()`（容器是边界），local 模式 `presets.coding()`（看一眼和跑测试的命令放行、危险的拒绝、其余问你 y/N）。
 
 ## 回放查看器
