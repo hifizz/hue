@@ -67,7 +67,7 @@ MCP 部分用测试里自带的 mock server：stdio 的是真子进程，HTTP �
 - 工具本身不拦路径越界，交给 sandbox（见 [DECISIONS.md](DECISIONS.md) 第 2 条）。`@hue/sandbox` 已实现，但 `local` 里的 `bash` 仍能 `cd` 出去，要隔离请用 `docker`。
 - **bash 没有权限控制**（policy 未实现），根目录 README 的里程碑文档要写明这点。
 - 30 KB 截断上限是经验值，没用真实任务调过。
-- **真实 server 的冒烟（2026-11-10，用户在终端跑的 `examples/mcp-smoke.ts`，stdio）**：`@modelcontextprotocol/server-filesystem@2.2.0` → 协议 `2026-07-28 (modern)`，16 个工具，调 `read_text_file` 拿到文件内容；`@2025.8.21` → 协议 `2025-11-25 (legacy)`（走了回退，握手后 server 日志显示它看到我们没声明 roots），14 个工具，**只列了工具，没调用**。就这些：没连过 HTTP 的真实 server，没碰过真实的 MRTR / 取消 / 断流，回退路径上没调过工具，也没和官方 SDK 对照报文。其余行为只对着自己写的 mock server 测过，我和 mock 对规范的误读会互相掩盖。
+- **真实 server 的冒烟（2026-11-10，用户在终端跑的 `examples/mcp-smoke.ts`，stdio）**：`@modelcontextprotocol/server-filesystem@2.2.0` → 协议 `2026-07-28 (modern)`，16 个工具，调 `read_text_file` 拿到文件内容；`@2025.8.21` → 协议 `2025-11-25 (legacy)`（走了回退，握手后 server 日志显示它看到我们没声明 roots），14 个工具，调 `read_text_file` 拿到文件内容（第一次用 `/tmp/…` 被 server 自己拒绝：它把允许目录解析成了 `/private/tmp/…` 却不解析传入的路径，我们把这个 `isError` 原样透传了；换成 `/private/tmp/…` 后读到内容）。就这些：没连过 HTTP 的真实 server，没碰过真实的 MRTR / 取消 / 断流，也没和官方 SDK 对照报文。其余行为只对着自己写的 mock server 测过，我和 mock 对规范的误读会互相掩盖。
 - 老版本 filesystem server 没有 annotations，14 个工具全是 `unsafe`（串行、policy 会问）。这是"没标注就当 unsafe"的直接后果，要放开用 `effects: { 工具名: 'none' }` 覆盖。
 - 2026-07-28 规范我是在 2026-11-10 从 modelcontextprotocol.io 读的（发现、MRTR、HTTP 头、取消、elicitation 几页），请求 / 响应字段名以那几页为准；`clientCapabilities` 里 `elicitation: { form: {} }` 的写法来自 elicitation 页。
 - 工具结果太大怎么办（设计页的 `TODO(deep)`）没处理：MCP 工具的输出原样进上下文，只有 `@hue/context` 的折叠能事后收拾。
