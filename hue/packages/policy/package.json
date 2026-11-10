@@ -1,0 +1,9 @@
+{
+  "name": "@hue/policy",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Hue policy: ordered rules that decide allow / deny / ask for each tool call. Pure functions, zero runtime deps.",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": { "@hue/core": "*" }
+}

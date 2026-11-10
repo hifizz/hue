@@ -14,9 +14,9 @@ npx tsx --env-file=.env.local examples/agent.ts <仓库目录> "<任务>" [会�
   - 副本只含已提交的内容，不含 `node_modules`（宿主的二进制依赖在 Linux 容器里跑不了），需要时 agent 会在容器里装。
   - 跑完会打印副本路径，以及看改动、采纳到原仓库的命令：`git -C <副本> diff` 和 `git -C <副本> diff | git -C <原仓库> apply`。
   - 续聊同一个会话：同一个会话 id，加 `HUE_COPY=<副本路径>` 复用副本。
-- `HUE_SANDBOX=local`：不隔离，命令以你的用户身份运行，`bash` 每次都停下来问 y/N。要在交互式终端里运行。
+- `HUE_SANDBOX=local`：不隔离，命令以你的用户身份运行，看一眼和跑测试的命令放行，危险的拒绝，其余停下来问 y/N。要在交互式终端里运行。
 - `HUE_TRACE=trace.jsonl`：把实际发给模型的请求体和响应头逐行写进文件（不含 key）。事件日志里没有这些，想知道"中转站有没有改系统提示"就看它。文件里有完整的提示和代码内容，别提交。
-- 没有 policy 包。
+- 策略用 `@hue/policy`：docker 模式 `presets.yolo()`（容器是边界），local 模式 `presets.coding()`（看一眼和跑测试的命令放行、危险的拒绝、其余问你 y/N）。
 
 ## 回放查看器
 

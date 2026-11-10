@@ -8,6 +8,7 @@ import type { HueEvent, Message, ModelChunk, ModelPort } from '@hue/core'
 import { sqliteStore } from '@hue/store'
 import { runAgent } from './agent.js'
 import { docker, local } from '@hue/sandbox'
+import { presets } from '@hue/policy'
 
 const tmp = () => mkdtempSync(join(tmpdir(), 'hue-ex-'))
 
@@ -46,7 +47,7 @@ test('agent：读 → 改 → 跑测试 → 通过；bash 前问过人；整个�
   const r = await runAgent({ model, sandbox: await local({ root: dir }), task: '修好 add', db, sessionId: 's1', ask: async p => { asked.push(p); return true } })
   assert.equal(r.reason, 'stop'); assert.equal(r.steps, 5)
   assert.equal(readFileSync(join(dir, 'calc.js'), 'utf8'), 'exports.add = (a, b) => a + b\n')
-  assert.equal(asked.length, 2); assert.ok(asked.every(p => p.startsWith('bash ')), 'read / edit 不问，只有 bash 问')
+  assert.equal(asked.length, 2); assert.ok(asked.every(p => p.startsWith('Allow bash? ')), 'read / edit 不问，只有 bash 问')
 
   // 第一次 bash 的结果（测试失败）确实回到了模型手里
   const firstBash = model.requests[1]!.at(-1)!
@@ -110,7 +111,7 @@ test('agent 在 docker 里：bash 在容器内执行且不再逐条询问，edit
       [call('c2', 'bash', { command: 'sh greet.sh; id -u; pwd' }), fin('tool-calls')],
       [text('done'), fin('stop')],
     ])
-    const r = await runAgent({ model, sandbox, task: 'x', db, sessionId: 's', confirmUnsafe: false, ask: async p => { asked.push(p); return true } })
+    const r = await runAgent({ model, sandbox, task: 'x', db, sessionId: 's', policy: presets.yolo(), ask: async p => { asked.push(p); return true } })
     assert.equal(r.reason, 'stop'); assert.deepEqual(asked, [])
     assert.equal(readFileSync(join(dir, 'greet.sh'), 'utf8'), 'echo hi\n')
     const out = JSON.stringify(model.requests[2]!.at(-1))

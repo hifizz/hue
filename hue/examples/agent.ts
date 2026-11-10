@@ -3,8 +3,8 @@
  *
  *   cd hue && npx tsx --env-file=.env.local examples/agent.ts <仓库目录> "<任务>" [会话id]
  *
- * 默认在 Docker 容器里、仓库的一份克隆上运行（HUE_SANDBOX=docker）。HUE_SANDBOX=local 不隔离，bash 每次问你 y/n。
- * 没有 policy 包。
+ * 默认在 Docker 容器里、仓库的一份克隆上运行（HUE_SANDBOX=docker），策略 presets.yolo()：容器就是边界。
+ * HUE_SANDBOX=local 不隔离，策略 presets.coding()：看一眼和跑测试的命令放行，危险的拒绝，其余问你 y/n。
  */
 import { execFileSync } from 'node:child_process'
 import { appendFileSync, mkdtempSync } from 'node:fs'
@@ -18,6 +18,7 @@ import { model } from '@hue/ai'
 import { sqliteStore } from '@hue/store'
 import { codingTools } from '@hue/tools'
 import { docker, local } from '@hue/sandbox'
+import { presets, rules } from '@hue/policy'
 
 const INSTRUCTIONS = `You are a coding agent working in the current directory (a git repository).
 Every tool and shell command already runs in the repository root: use relative paths and never cd to another directory.
@@ -31,8 +32,8 @@ export interface AgentOptions {
   sessionId: string
   /** 问用户 y/n。测试里换成自动应答。 */
   ask: (prompt: string) => Promise<boolean>
-  /** 不可重复的工具（bash）是否每次都问。默认 true；跑在 docker 里时由调用方关掉。 */
-  confirmUnsafe?: boolean
+  /** 默认：不可重复的工具（bash）每次都问，其余放行。docker 里用 presets.yolo()，local 用 presets.coding()。 */
+  policy?: PolicyPort
   onEvent?: (e: HueEvent) => void
   signal?: AbortSignal
 }
@@ -48,8 +49,7 @@ export async function runAgent(o: AgentOptions): Promise<TurnResult> {
       const events = repairs.map((r, i) => ({ v: 1, id: crypto.randomUUID(), sessionId: o.sessionId, seq: state.lastSeq + 1 + i, at: Date.now(), ...r }) as HueEvent)
       await store.append(events); state = await load()
     }
-    // 没有 policy 包：默认不可重复的工具（bash）每次都问人。
-    const policy: PolicyPort = { specVersion: 'hue.policy.v1', decide: async c => c.effects === 'unsafe' && o.confirmUnsafe !== false ? { action: 'ask', prompt: `${c.tool} ${JSON.stringify(c.input)}` } : { action: 'allow' } }
+    const policy = o.policy ?? rules([{ effects: 'unsafe', action: 'ask' }], { default: 'allow' })
     const inputPort: InputPort = { request: async r => (await o.ask(r.prompt)) ? { action: 'accept' } : { action: 'decline', reason: 'the user declined' } }
 
     const turn = runTurn({ sessionId: o.sessionId, state, input: userText(o.task), model: o.model, instructions: INSTRUCTIONS, tools: codingTools(), sandbox: o.sandbox, policy, inputPort, maxSteps: 40, signal: o.signal })
@@ -104,8 +104,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     result = await runAgent({
       model: model(`anthropic:${process.env.HUE_MODEL ?? 'claude-sonnet-5-5'}`, { apiKey, baseURL: process.env.AI_GATEWAY_BASE_URL || process.env.ANTHROPIC_BASE_URL, thinking: { type: 'adaptive', display: 'summarized' }, trace }),
       sandbox, task, sessionId, db: process.env.HUE_DB ?? './hue.db',
-      confirmUnsafe: mode === 'local', // 在容器里不再逐条确认；local 没有隔离，仍然问
-      ask: async p => /^y/i.test(await rl.question(`\n允许执行？ ${p} [y/N] `)), onEvent: printer(),
+      policy: mode === 'docker' ? presets.yolo() : presets.coding(), // 容器是边界，不再逐条确认；local 没有隔离，按预设放行 / 拒绝 / 询问
+      ask: async p => /^y/i.test(await rl.question(`\n${p} [y/N] `)), onEvent: printer(),
     })
   } finally { rl.close(); if ('dispose' in sandbox) await (sandbox as { dispose(): Promise<void> }).dispose() }
   console.log(`会话 ${sessionId}（续聊：同一个 id${mode === 'docker' ? ` 加 HUE_COPY=${workdir}` : ''}）`)
