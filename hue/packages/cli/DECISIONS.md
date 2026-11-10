@@ -18,3 +18,9 @@
 
 - **选了**：默认和 `examples/agent.ts` 一样走 docker 副本，避免 CLI 直接改当前仓库。local 必须 `--sandbox local`；没有 TTY 时还要 `--yes` 才用 yolo。
 - **代价**：第一次跑需要 Docker 和一个 git 仓库。只想试模型是否通时，用 `--sandbox local --yes` 在临时目录里跑。
+
+## 4. tsx 从安装位置解析
+
+- **选了**：`bin/hue.mjs` 用 `import.meta.resolve('tsx')` 得到绝对路径，再传给 `node --import`。
+- **为什么**：`--import tsx` 按当前工作目录解析。把 `hue` 放进 PATH 后在别的仓库里跑，就会 `Cannot find package 'tsx'`。
+- **代价**：仍然依赖工作区根上的 `tsx`，还没有把 CLI 编成纯 JS。
