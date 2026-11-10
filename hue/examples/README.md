@@ -16,6 +16,7 @@ npx tsx --env-file=.env.local examples/agent.ts <仓库目录> "<任务>" [会�
   - 续聊同一个会话：同一个会话 id，加 `HUE_COPY=<副本路径>` 复用副本。
 - `HUE_SANDBOX=local`：不隔离，命令以你的用户身份运行，看一眼和跑测试的命令放行，危险的拒绝，其余停下来问 y/N。要在交互式终端里运行。
 - `HUE_TRACE=trace.jsonl`：把实际发给模型的请求体和响应头逐行写进文件（不含 key）。事件日志里没有这些，想知道"中转站有没有改系统提示"就看它。文件里有完整的提示和代码内容，别提交。
+- 上下文用 `@hue/context`：`chain(foldToolResults(), summarize({ model }))`，估算超过窗口 80% 就压。长任务里只有折叠真正起作用，见 `packages/context/DECISIONS.md` 第 0 条。
 - 策略用 `@hue/policy`：docker 模式 `presets.yolo()`（容器是边界），local 模式 `presets.coding()`（看一眼和跑测试的命令放行、危险的拒绝、其余问你 y/N）。
 
 ## 回放查看器

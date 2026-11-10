@@ -1,0 +1,9 @@
+{
+  "name": "@hue/context",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Hue context: token budget and compaction strategies (truncate, fold tool results, summarize) implementing core's ContextStrategy. Zero runtime deps.",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": { "@hue/core": "*" }
+}

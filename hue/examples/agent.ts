@@ -13,12 +13,13 @@ import { join } from 'node:path'
 import { createInterface } from 'node:readline/promises'
 import { pathToFileURL } from 'node:url'
 import { emptyState, fold, isDurable, repairDangling, runTurn, userText } from '@hue/core'
-import type { HueEvent, InputPort, ModelPort, PolicyPort, SandboxPort, TurnResult } from '@hue/core'
+import type { ContextStrategy, HueEvent, InputPort, ModelPort, PolicyPort, SandboxPort, TurnResult } from '@hue/core'
 import { model } from '@hue/ai'
 import { sqliteStore } from '@hue/store'
 import { codingTools } from '@hue/tools'
 import { docker, local } from '@hue/sandbox'
 import { presets, rules } from '@hue/policy'
+import { chain, foldToolResults, summarize } from '@hue/context'
 
 const INSTRUCTIONS = `You are a coding agent working in the current directory (a git repository).
 Every tool and shell command already runs in the repository root: use relative paths and never cd to another directory.
@@ -34,6 +35,8 @@ export interface AgentOptions {
   ask: (prompt: string) => Promise<boolean>
   /** 默认：不可重复的工具（bash）每次都问，其余放行。docker 里用 presets.yolo()，local 用 presets.coding()。 */
   policy?: PolicyPort
+  /** 上下文策略。不给就不压缩，一直发完整历史。 */
+  context?: ContextStrategy
   onEvent?: (e: HueEvent) => void
   signal?: AbortSignal
 }
@@ -52,7 +55,7 @@ export async function runAgent(o: AgentOptions): Promise<TurnResult> {
     const policy = o.policy ?? rules([{ effects: 'unsafe', action: 'ask' }], { default: 'allow' })
     const inputPort: InputPort = { request: async r => (await o.ask(r.prompt)) ? { action: 'accept' } : { action: 'decline', reason: 'the user declined' } }
 
-    const turn = runTurn({ sessionId: o.sessionId, state, input: userText(o.task), model: o.model, instructions: INSTRUCTIONS, tools: codingTools(), sandbox: o.sandbox, policy, inputPort, maxSteps: 40, signal: o.signal })
+    const turn = runTurn({ sessionId: o.sessionId, state, input: userText(o.task), model: o.model, instructions: INSTRUCTIONS, tools: codingTools(), sandbox: o.sandbox, policy, context: o.context, inputPort, maxSteps: 40, signal: o.signal })
     for (let n = await turn.next(); ; n = await turn.next()) {
       if (n.done) return n.value
       if (isDurable(n.value)) await store.append([n.value]) // 拉取即落盘：下一次 next() 之前先写，tool.call 在工具执行前就已经在盘上
@@ -101,8 +104,11 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const rl = createInterface({ input: process.stdin, output: process.stdout })
   let result
   try {
+    const llm = model(`anthropic:${process.env.HUE_MODEL ?? 'claude-sonnet-5-5'}`, { apiKey, baseURL: process.env.AI_GATEWAY_BASE_URL || process.env.ANTHROPIC_BASE_URL, thinking: { type: 'adaptive', display: 'summarized' }, trace })
     result = await runAgent({
-      model: model(`anthropic:${process.env.HUE_MODEL ?? 'claude-sonnet-5-5'}`, { apiKey, baseURL: process.env.AI_GATEWAY_BASE_URL || process.env.ANTHROPIC_BASE_URL, thinking: { type: 'adaptive', display: 'summarized' }, trace }),
+      model: llm,
+      // 先折叠旧的大工具结果（不花钱、可恢复），不够再让同一个模型写摘要。摘要在一个长任务内部切不开，见 packages/context/DECISIONS.md 第 0 条。
+      context: chain(foldToolResults(), summarize({ model: llm })),
       sandbox, task, sessionId, db: process.env.HUE_DB ?? './hue.db',
       policy: mode === 'docker' ? presets.yolo() : presets.coding(), // 容器是边界，不再逐条确认；local 没有隔离，按预设放行 / 拒绝 / 询问
       ask: async p => /^y/i.test(await rl.question(`\n${p} [y/N] `)), onEvent: printer(),

@@ -9,6 +9,7 @@ import { sqliteStore } from '@hue/store'
 import { runAgent } from './agent.js'
 import { docker, local } from '@hue/sandbox'
 import { presets } from '@hue/policy'
+import { foldToolResults } from '@hue/context'
 
 const tmp = () => mkdtempSync(join(tmpdir(), 'hue-ex-'))
 
@@ -117,4 +118,18 @@ test('agent 在 docker 里：bash 在容器内执行且不再逐条询问，edit
     const out = JSON.stringify(model.requests[2]!.at(-1))
     assert.ok(out.includes('hi\\n') && out.includes('/work') && !out.includes('\\n0\\n'), out) // 在容器里执行、不是 root
   } finally { await sandbox.dispose() }
+})
+
+test('agent 带 context：长任务里旧的大结果被折叠，压缩事件落进 sqlite 日志，每次请求都在窗口内', async () => {
+  const dir = tmp(), db = join(tmp(), 'hue.db')
+  writeFileSync(join(dir, 'big.txt'), 'z'.repeat(3000))
+  const reads = Array.from({ length: 6 }, (_, i) => [call(`c${i}`, 'read', { path: 'big.txt' }), fin('tool-calls')])
+  const model = scripted([...reads, [text('done'), fin('stop')]])
+  model.info.contextWindow = 3000 // 估算：每次读取约 900 token，窗口 3000，触发线是 80% = 2400，读到第 3 次就越线
+  const r = await runAgent({ model, sandbox: await local({ root: dir }), task: '读它', db, sessionId: 's', policy: presets.yolo(), ask: async () => true, context: foldToolResults({ keepRecent: 2 }) })
+  assert.equal(r.reason, 'stop'); assert.equal(r.steps, 7)
+  const log = await all(db, 's')
+  assert.ok(log.some(e => e.type === 'context.compacted'), 'compaction must be in the log')
+  assert.ok(model.requests.at(-1)!.some(m => m.role === 'tool' && JSON.stringify(m).includes('omitted to save context')), 'old results are folded')
+  assert.equal(log.filter(e => e.type === 'tool.result').length, 6) // 日志里的原始结果一个没少
 })
