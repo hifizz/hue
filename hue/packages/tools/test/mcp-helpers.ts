@@ -7,7 +7,12 @@ import type { MockOptions } from './mcp-mock.js'
 export const SERVER = new URL('./mcp-stdio-server.ts', import.meta.url).pathname
 export const TSX = import.meta.resolve('tsx')
 
-export interface Spawned { server: McpServer; stderr: string[]; received: () => RpcMessage[]; pid: () => number }
+/**
+ * received() 读的是子进程的 stderr，而工具结果走 stdout，两条管道各自独立：结果先到、对应的 recv: 行还没读到是可能的
+ * （GitHub Actions 的 Linux runner 上出现过：断言"收到 2 次 tools/call"时只看到 1 次）。
+ * settled() 等 stderr 连续 quietMs 没有新行再返回，断言前先 await 它。
+ */
+export interface Spawned { server: McpServer; stderr: string[]; received: () => RpcMessage[]; settled: (quietMs?: number) => Promise<void>; pid: () => Promise<number> }
 
 /** 起一个 mock stdio server，并把它 stderr 里记的"收到了什么"解析出来。 */
 export function stdio(mock: MockOptions = {}, o: Partial<McpOptions> = {}): Spawned {
@@ -16,7 +21,10 @@ export function stdio(mock: MockOptions = {}, o: Partial<McpOptions> = {}): Spaw
   return {
     server, stderr,
     received: () => stderr.filter(l => l.startsWith('recv:')).map(l => JSON.parse(l.slice(5)) as RpcMessage),
-    pid: () => Number(stderr.findLast(l => l.startsWith('pid:'))!.slice(4)),
+    settled: async (quietMs = 100) => {
+      for (let seen = -1; seen !== stderr.length;) { seen = stderr.length; await new Promise(r => setTimeout(r, quietMs)) }
+    },
+    pid: async () => { await until(() => stderr.some(l => l.startsWith('pid:'))); return Number(stderr.findLast(l => l.startsWith('pid:'))!.slice(4)) },
   }
 }
 

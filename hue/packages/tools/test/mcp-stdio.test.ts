@@ -14,7 +14,7 @@ const opened: Spawned[] = []
 const open = (...a: Parameters<typeof stdio>) => { const s = stdio(...a); opened.push(s); return s }
 after(async () => { await Promise.all(opened.map(s => s.server.close())) })
 const NS = 'io.modelcontextprotocol/'
-const methods = (s: Spawned) => s.received().map(m => m.method)
+const methods = async (s: Spawned) => { await s.settled(); return s.received().map(m => m.method) }
 
 test('新协议：先 server/discover，不发 initialize；工具名带前缀，顺序是 server 给的，点号换成下划线；effects 由 annotations 推出', async () => {
   const s = open({ instructions: 'Use echo for echoes.' })
@@ -23,12 +23,13 @@ test('新协议：先 server/discover，不发 initialize；工具名带前缀�
   assert.ok('mock__dotted_name' in t, '服务商只接受 [a-zA-Z0-9_-]')
   assert.deepEqual([t.mock__echo!.effects, t.mock__idem!.effects, t.mock__write!.effects], ['none', 'idempotent', 'unsafe'])
   assert.equal(await s.server.instructions!(capabilityCtx), 'Use echo for echoes.')
-  assert.deepEqual(methods(s), ['server/discover', 'tools/list'])
+  assert.deepEqual((await methods(s)), ['server/discover', 'tools/list'])
 })
 
 test('每个请求的 _meta 都带齐版本、能力（只声明 elicitation 表单）、身份；请求 ID 互不相同', async () => {
   const s = open(); const t = await toolsOf(s.server)
   await run(t.mock__echo!, { text: 'a' }); await run(t.mock__echo!, { text: 'b' })
+  await s.settled()
   const reqs = s.received().filter(m => m.id !== undefined)
   assert.equal(reqs.length, 4)
   for (const r of reqs) {
@@ -57,6 +58,7 @@ test('MRTR：一轮——input_required 变成 requestInput 的表单请求，�
   const ctx = ctxOf({ requestInput: async r => { asked.push(r); return { action: 'accept', value: { name: 'ada' } } } })
   assert.equal(text(await run(t.mock__ask!, {}, ctx)), 'hello ada')
   assert.deepEqual(asked, [{ kind: 'form', prompt: 'Who are you?', schema: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] } }])
+  await s.settled()
   const calls = s.received().filter(m => m.method === 'tools/call')
   assert.equal(calls.length, 2); assert.notEqual(calls[0]!.id, calls[1]!.id)
   const retry = calls[1]!.params as Record<string, any>
@@ -75,9 +77,11 @@ test('MRTR：server 一直要输入 → 重试 5 轮后放弃，返回错误结�
   const s = open(); const t = await toolsOf(s.server)
   const out = await run(t.mock__loop!, {}, ctxOf({ requestInput: answerWith({ action: 'accept', value: {} }) }))
   assert.equal(out.isError, true); assert.match(text(out), /kept asking for more input \(5 rounds\)/)
+  await s.settled()
   assert.equal(s.received().filter(m => m.method === 'tools/call').length, 6, '第一次加 5 次重发')
   const few = open({}, { maxInputRounds: 2 }); const loop = (await toolsOf(few.server)).mock__loop!
   await run(loop, {}, ctxOf({ requestInput: answerWith({ action: 'accept', value: {} }) }))
+  await few.settled()
   assert.equal(few.received().filter(m => m.method === 'tools/call').length, 3)
 })
 
@@ -105,12 +109,14 @@ test('取消：signal 触发时发 notifications/cancelled（stdio 上唯一的�
 test('连接中途断了（进程退出）：只读的工具自动用新 ID 重发一次，重新拉起 server；不可重复的不重发，告诉模型结果未知', async () => {
   const s = open({ stateDir: mkdtempSync(join(tmpdir(), 'hue-mcp-')) }); const t = await toolsOf(s.server)
   assert.equal(text(await run(t['mock__die-once']!, {})), 'survived die-once')
+  await s.settled()
   const calls = s.received().filter(m => m.method === 'tools/call' && (m.params as { name: string }).name === 'die-once')
   assert.equal(calls.length, 2); assert.notEqual(calls[0]!.id, calls[1]!.id)
-  assert.equal(methods(s).filter(m => m === 'server/discover').length, 2, '新进程要重新探测')
+  assert.equal((await methods(s)).filter(m => m === 'server/discover').length, 2, '新进程要重新探测')
 
   const unsafe = await run(t['mock__die-once-unsafe']!, {})
   assert.equal(unsafe.isError, true); assert.match(text(unsafe), /unknown whether it took effect/)
+  await s.settled()
   assert.equal(s.received().filter(m => m.method === 'tools/call' && (m.params as { name: string }).name === 'die-once-unsafe').length, 1, '没有重发')
   assert.equal(text(await run(t.mock__echo!, { text: 'back' })), 'echo:back', '下一次调用会重新拉起')
 })
@@ -121,13 +127,14 @@ test('并发调用按 ID 各自对上；工具列表分页合并、顺序不变�
   const outs = await Promise.all(['a', 'b', 'c'].map(x => run(t.mock__echo!, { text: x })))
   assert.deepEqual(outs.map(text), ['echo:a', 'echo:b', 'echo:c'])
   await toolsOf(s.server)
-  assert.equal(methods(s).filter(m => m === 'tools/list').length, 2, '两页，只取了一轮')
+  assert.equal((await methods(s)).filter(m => m === 'tools/list').length, 2, '两页，只取了一轮')
 })
 
 test('老 server（2025-11-25）：discover 被拒 → initialize → initialized；之后的请求没有新协议的 _meta；缺 resultType 当 complete；握手里不声明任何能力', async () => {
   const s = open({ mode: 'legacy', instructions: 'legacy hello' }); const t = await toolsOf(s.server)
   assert.equal(text(await run(t.mock__echo!, { text: 'x' })), 'echo:x')
-  assert.deepEqual(methods(s), ['server/discover', 'initialize', 'notifications/initialized', 'tools/list', 'tools/call'])
+  await s.settled()
+  assert.deepEqual((await methods(s)), ['server/discover', 'initialize', 'notifications/initialized', 'tools/list', 'tools/call'])
   const init = s.received().find(m => m.method === 'initialize')!.params as Record<string, unknown>
   assert.deepEqual([init.protocolVersion, init.capabilities], ['2025-11-25', {}])
   for (const m of s.received().filter(m => m.method === 'tools/list' || m.method === 'tools/call')) assert.ok(!Object.keys((m.params as { _meta: object })._meta).some(k => k.startsWith(NS)), JSON.stringify(m))
@@ -141,18 +148,19 @@ test('旧协议 server 中途主动发来请求（elicitation/create）：我们
 
 test('对 discover 不作声的老 server：超时后回退到 initialize', async () => {
   const s = open({ mode: 'silent-legacy' }, { probeTimeoutMs: 300 }); const t = await toolsOf(s.server)
-  assert.equal(text(await run(t.mock__echo!, { text: 'y' })), 'echo:y'); assert.ok(methods(s).includes('initialize'))
+  assert.equal(text(await run(t.mock__echo!, { text: 'y' })), 'echo:y'); assert.ok((await methods(s)).includes('initialize'))
 })
 
 test('回退关掉时，老 server 是明确的错误；新 server 不受影响', async () => {
   const s = open({ mode: 'legacy' }, { fallback: false })
   await assert.rejects(toolsOf(s.server), (e: unknown) => e instanceof McpError && /fallback to 2025-11-25 is off/.test(e.message))
-  assert.equal(methods(s).includes('initialize'), false)
+  assert.equal((await methods(s)).includes('initialize'), false)
 })
 
 test('版本不对（-32022）：用 server 报的 supported 换版本重发一次', async () => {
   const s = open({}, { versions: ['2099-01-01', '2026-07-28'] }); const t = await toolsOf(s.server)
   assert.equal(text(await run(t.mock__echo!, { text: 'v' })), 'echo:v')
+  await s.settled()
   const versions = s.received().map(m => ((m.params as { _meta: Record<string, unknown> })._meta)[`${NS}protocolVersion`])
   assert.deepEqual(versions, ['2099-01-01', '2026-07-28', '2026-07-28', '2026-07-28'])
 })
@@ -168,7 +176,7 @@ test('server 不带 resultType（模拟没按新规范写的新协议 server）�
 })
 
 test('close()：关 stdin、等 server 退出；进程崩溃或被 kill 时也不留孤儿', async () => {
-  const s = open(); await toolsOf(s.server); const pid = s.pid()
+  const s = open(); await toolsOf(s.server); const pid = await s.pid()
   assert.ok(alive(pid)); await s.server.close(); await until(() => !alive(pid), 3000)
 })
 
@@ -193,10 +201,10 @@ test('名字不合法 / effects 覆盖 / 不信任 annotations', async () => {
 }
 
 test('不听话的 server（关了 stdin 也不退）：close() 升级到 SIGTERM；连 SIGTERM 也不理就升级到 SIGKILL', { timeout: 20_000 }, async () => {
-  const a = stdio({ ignoreEof: true }); await toolsOf(a.server); const pa = a.pid()
-  await a.server.close(); assert.equal(alive(pa), false); assert.ok(a.stderr.includes('got-sigterm'), '先是 SIGTERM')
-  const b = stdio({ ignoreEof: true, ignoreTerm: true }); await toolsOf(b.server); const pb = b.pid()
-  await b.server.close(); assert.ok(b.stderr.includes('got-sigterm')); assert.equal(alive(pb), false, 'SIGKILL 兜底')
+  const a = stdio({ ignoreEof: true }); await toolsOf(a.server); const pa = await a.pid()
+  await a.server.close(); await a.settled(); assert.equal(alive(pa), false); assert.ok(a.stderr.includes('got-sigterm'), '先是 SIGTERM')
+  const b = stdio({ ignoreEof: true, ignoreTerm: true }); await toolsOf(b.server); const pb = await b.pid()
+  await b.server.close(); await b.settled(); assert.ok(b.stderr.includes('got-sigterm')); assert.equal(alive(pb), false, 'SIGKILL 兜底')
 })
 
 test('宿主进程直接退出（没调 close）：不听话的 server 也被带走，不留孤儿', { timeout: 15_000 }, async () => {
