@@ -31,7 +31,7 @@
 | [019](ADR-019-gateway-sse-not-websocket.md) | gateway 用 SSE，不做 WebSocket | gateway | 已接受 | — |
 | [020](ADR-020-telemetry-handwritten-otlp.md) | telemetry 手写 OTLP，ID 由事件决定 | telemetry | 已接受 | — |
 | [021](ADR-021-cli-is-a-recipe.md) | CLI 是配方，不是新的一层 | cli | 已接受 | 发布形态未决 |
-| [022](ADR-022-lint-via-strict-tsc-and-ci.md) | lint 用 tsc 严格选项；逐包 `tsc -p`；CI | 全仓 | 已接受 | CI 没在 GitHub 上跑过；Linux 上 docker 用例是第一次跑 |
+| [022](ADR-022-lint-via-strict-tsc-and-ci.md) | lint 用 tsc 严格选项；逐包 `tsc -p`；CI | 全仓 | 已接受 | CI 已在 GitHub 上跑绿（修了 2 个只在 CI 暴露的测试问题） |
 
 core 另有 [`hue/packages/core/DECISIONS.md`](../../hue/packages/core/DECISIONS.md)（此前没有）：D1–D7 摘要加原先未决的四个问题（第 5–8 条，已拍板）。
 

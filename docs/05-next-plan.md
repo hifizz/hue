@@ -11,7 +11,7 @@
 
 - 13 个包加 cli 都有代码。`npm test`：502 个测试，483 通过，19 skip，0 失败。`npm run budget` 全部在预算内（cli 1324/1400、telemetry 362/400 最紧）。
 - **没有一项在真实模型 + 真实仓库上验证过**：阈值、召回、白名单、题目难度、摘要质量都是猜的。
-- `npm run check` 已可用（逐包 `tsc -p`，见 ADR-003、ADR-022）；CI workflow 已写，未在 GitHub 上跑过。
+- `npm run check` 已可用（逐包 `tsc -p`，见 ADR-003、ADR-022）；CI 在 GitHub 上已跑绿（PR hifizz/hue#2，修了两个只在 CI 上暴露的测试问题，见 ADR-022）。
 - eval：5 道题，无前后对比，无 manifest，无成本，无对照组，不能接外部 benchmark。
 
 ## 总判断：A 和 B 不是两条线
@@ -30,7 +30,7 @@ M6 对外（博客、简历）持续消费 M1–M4 的数据
 - ~~CI（GitHub Actions）：`check` + `test` + `budget`，Node 22。~~ 已写 `.github/workflows/ci.yml`（ADR-022）。
 - ~~lint~~ 打开 tsc 严格选项，不引入 ESLint（ADR-022）。
 - 合并 `feat/cli`，推送。
-- 验收：CI 绿。**（推送后看 Actions 结果；尚未验证）**
+- 验收：CI 绿。**已达成**（PR #2 的 `ff9e1ef`）；合并 `feat/cli` 还没做。
 
 ## M1 真实验证（2–3 天）= 路线图第 1 周遗留的里程碑
 
@@ -82,7 +82,7 @@ M6 对外（博客、简历）持续消费 M1–M4 的数据
 **P0（多半会挡住评测）**
 - ai：在线跑 `modelPortContract` 的 4 个测试（OpenAI provider 已决定先不做）。
 - runtime：子 agent token 汇总进父会话（否则成本统计是错的）。
-- sandbox：Linux 验证（benchmark 机器需要）。
+- sandbox：Linux 验证（benchmark 机器需要）。**部分完成**：GitHub 的 ubuntu runner 上 19 个 docker 用例全部通过；其他发行版、cgroup v1、以及 benchmark 用的云机还没验证。
 - context / policy：用 M1、M3 的 trace 调阈值和白名单。
 
 **P1**
