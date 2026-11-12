@@ -1,0 +1,94 @@
+/** Hue 终端配色：橙、金、绿、青、天蓝。不用粉或紫。 */
+import type { EditorTheme, MarkdownTheme, SelectListTheme } from '@earendil-works/pi-tui'
+import { homedir } from 'node:os'
+
+const paint = (open: string) => (s: string) => `${open}${s}\x1b[0m`
+
+export const color = {
+  dim: paint('\x1b[2m'),
+  bold: paint('\x1b[1m'),
+  italic: (s: string) => `\x1b[3m${s}\x1b[0m`,
+  strike: (s: string) => `\x1b[9m${s}\x1b[0m`,
+  underline: (s: string) => `\x1b[4m${s}\x1b[0m`,
+  orange: paint('\x1b[38;5;208m'),
+  gold: paint('\x1b[38;5;178m'),
+  green: paint('\x1b[38;5;71m'),
+  cyan: paint('\x1b[38;5;73m'),
+  sky: paint('\x1b[38;5;74m'),
+  red: paint('\x1b[38;5;167m'),
+  muted: paint('\x1b[38;5;245m'),
+}
+
+export const selectTheme: SelectListTheme = {
+  selectedPrefix: color.gold,
+  selectedText: color.gold,
+  description: color.muted,
+  scrollInfo: color.dim,
+  noMatch: color.muted,
+}
+
+export const editorTheme: EditorTheme = {
+  borderColor: color.cyan,
+  selectList: selectTheme,
+}
+
+export const markdownTheme: MarkdownTheme = {
+  heading: s => color.bold(color.sky(s)),
+  link: color.cyan,
+  linkUrl: color.dim,
+  code: color.gold,
+  codeBlock: s => s,
+  codeBlockBorder: color.muted,
+  quote: color.muted,
+  quoteBorder: color.cyan,
+  hr: color.muted,
+  listBullet: color.orange,
+  bold: color.bold,
+  italic: color.italic,
+  strikethrough: color.strike,
+  underline: color.underline,
+}
+
+export function formatTokens(count: number): string {
+  if (count < 1000) return String(count)
+  if (count < 10_000) return `${(count / 1000).toFixed(1)}k`
+  if (count < 1_000_000) return `${Math.round(count / 1000)}k`
+  if (count < 10_000_000) return `${(count / 1_000_000).toFixed(1)}M`
+  return `${Math.round(count / 1_000_000)}M`
+}
+
+export function formatCwd(cwd: string, home = process.env.HOME ?? homedir()): string {
+  if (home && (cwd === home || cwd.startsWith(`${home}/`))) return `~${cwd.slice(home.length)}`
+  return cwd
+}
+
+export function formatDuration(ms: number): string {
+  const seconds = ms / 1000
+  if (seconds < 60) return `${seconds.toFixed(1)}s`
+  const total = Math.floor(seconds)
+  const minutes = Math.floor(total / 60)
+  const rem = total % 60
+  if (minutes < 60) return `${minutes}m ${rem}s`
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m ${rem}s`
+}
+
+/** 工具调用标题：收起时是同一行的 key=value，展开时每行一个参数。 */
+export function formatToolLine(name: string, args: unknown, expanded: boolean): string {
+  const title = color.bold(color.orange(name))
+  if (args == null || (typeof args === 'object' && !Array.isArray(args) && Object.keys(args as object).length === 0)) {
+    return title
+  }
+  const entries = typeof args === 'object' && args !== null && !Array.isArray(args)
+    ? Object.entries(args as Record<string, unknown>)
+    : [['args', args]] as Array<[string, unknown]>
+  if (expanded) {
+    const lines = entries.map(([k, v]) => {
+      const text = typeof v === 'string' ? v : (JSON.stringify(v, null, 2) ?? String(v))
+      return `  ${k}: ${text.replace(/\t/g, '   ').replace(/\r/g, '').split('\n').join('\n    ')}`
+    })
+    return `${title}\n${color.muted(lines.join('\n'))}`
+  }
+  const pairs = entries.map(([k, v]) => `${k}=${JSON.stringify(v) ?? String(v)}`).join(' ')
+  const preview = pairs.length > 80 ? `${pairs.slice(0, 77)}...` : pairs
+  return `${title} ${color.muted(preview)}`
+}

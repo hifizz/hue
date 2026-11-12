@@ -88,7 +88,6 @@ test('policy deny / ask via InputPort', async () => {
 })
 
 test('interrupt mid-tool: every tool.call still gets exactly one tool.result', async () => {
-  const log: string[] = []
   const ac = new AbortController()
   const slow: Tool = { name: 'slow', description: '', inputSchema: {}, effects: 'unsafe', execute: (_i, ctx) => new Promise((_, j) => ctx.signal.addEventListener('abort', () => j(Object.assign(new Error('aborted'), { name: 'AbortError' })))) }
   const m = scripted([[call('c1', 'slow'), call('c2', 'slow'), fin('tool-calls')]])
@@ -110,7 +109,7 @@ test('crash recovery: dangling call repaired as crashed', () => {
   const fix = repairDangling(s)
   assert.equal(fix.length, 2)
   assert.equal((fix[0] as any).synthetic, 'crashed')
-  assert.equal(fix[1].type, 'turn.ended')
+  assert.equal(fix[1]?.type, 'turn.ended')
 })
 
 test('steer: message pulled between steps keeps the turn going', async () => {

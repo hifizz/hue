@@ -116,7 +116,7 @@ export async function openStream(url: string, headers: Record<string, string> = 
           const block = buf.slice(0, i); buf = buf.slice(i + 2)
           if (block.startsWith(':')) { s.comments.push(block); continue }
           const f = Object.fromEntries(block.split('\n').map(l => [l.slice(0, l.indexOf(':')), l.slice(l.indexOf(':') + 2)]))
-          s.events.push({ id: f.id, event: f.event, data: JSON.parse(f.data) })
+          s.events.push({ ...(f.id !== undefined && { id: f.id }), event: f.event ?? '', data: JSON.parse(f.data ?? 'null') })
         }
         waiters.splice(0).forEach(w => w())
       }

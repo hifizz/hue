@@ -18,7 +18,7 @@
 互不依赖，谁先过门禁谁先合。建议先合 **store → policy → sandbox**（小、快，能马上和 core 跑通端到端），再合 **ai → tools 内置 → MCP**。
 
 ## 门禁（每个 PR）
-1. `tsc -b` 全仓零错误
+1. `npm run check`（逐包 `tsc -p`）全仓零错误
 2. 全仓测试通过（含 core 的 11 个，证明没人动 core）
 3. `node scripts/budget.mjs` 通过
 4. DECISIONS.md 完整

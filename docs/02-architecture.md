@@ -28,7 +28,7 @@
 ```
 - core 零 I/O、零运行时依赖：只定义类型、接口、loop（设计见 packages/core.md，代码 hue/packages/core）
 - 包之间不互相 import，只依赖 core；组合只发生在 runtime 或用户的配方里
-- DECIDE: tools 的 MCP client 要不要单独成 @hue/mcp（Pi 做法：零依赖独立包）TODO(verify)
+- DONE(ADR-002): MCP client 留在 @hue/tools，不单独成 @hue/mcp（Pi 做法：零依赖独立包 TODO(verify)）
 
 ## 事件合同（跨包唯一通信方式）
 - 已定稿 v1，见 `packages/core.md` 第 4 节与代码 `hue/packages/core/src/event.ts`。
@@ -48,7 +48,7 @@ const agent = createAgent({
 })
 for await (const e of agent.run('修复 #123')) render(e)
 ```
-- DECIDE: 配方是函数调用（如上）还是声明式配置文件（hue.config.ts）？或两者
+- DONE(ADR-021): 配方是函数调用；`hue.config.ts` 没做
 - DECIDE: 对外发布形态——13 个独立 npm 包，还是一个 `hue` 包 + 子路径导出（fx 做法），或两者都给
 
 ## Monorepo 骨架（建议）
@@ -59,4 +59,4 @@ hue/
   evals/tasks/
   docs/  (就是这批文档)
 ```
-- DECIDE: 工具链 pnpm + tsup / tsdown；测试 vitest；Node ≥ 22 还是 Bun 也支持
+- DONE(ADR-003): npm workspaces + tsx + node:test，不构建；未比较过 pnpm / tsup / vitest，Bun 未验证

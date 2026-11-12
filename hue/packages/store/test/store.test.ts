@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
-import { appendFileSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { emptyState, fold, isDurable, runTurn, textResult, userText } from '@hue/core'
-import type { EventStore, HueEvent, ModelChunk, ModelPort, Tool } from '@hue/core'
+import type { HueEvent, ModelChunk, ModelPort, Tool } from '@hue/core'
 import { eventStoreContract } from '@hue/core/contracts'
 import { listSessions, memoryStore, sqliteStore } from '../src/index.js'
 

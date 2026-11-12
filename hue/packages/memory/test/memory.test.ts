@@ -126,7 +126,7 @@ test('recall：limit 默认 5、最多 20；很长的笔记在结果里截断', 
 // ═════════ 跨会话（真 core loop）═════════
 
 test('跨会话：第一个会话里模型 remember，第二个全新的会话（新 state、新 loop）的提示里就有索引，模型 recall 拿回正文', async () => {
-  const dir = await tmp(); const m = file(dir, { now: tick })
+  const dir = await tmp()
   const fin = (r: 'stop' | 'tool-calls'): ModelChunk => ({ type: 'finish', finishReason: r, usage: { inputTokens: 1, outputTokens: 1 } })
   const scripted = (steps: ModelChunk[][]): ModelPort & { requests: ModelRequest[] } => {
     let i = 0; const requests: ModelRequest[] = []

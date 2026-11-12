@@ -2,7 +2,7 @@
 
 ## @hue/policy
 - 接口：`decide(call: ToolCall, ctx): 'allow' | 'deny' | 'ask'`，在 core 里定义
-- DECIDE: 规则格式（allowlist / glob / 函数）
+- DONE(ADR-014): 规则是 TypeScript 值（`match` 可为正则或函数），不支持 JSON
 - LATER: 审批 UI 事件、记住决定
 
 ## @hue/sandbox

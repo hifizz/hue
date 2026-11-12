@@ -3,6 +3,7 @@ import type {
   Capability, ContextStrategy, ConversationState, EventInit, EventStore, HueEvent, InputPort, Json, ModelPort, ModelSettings,
   PolicyPort, SandboxPort, SessionCreated, StopCondition, Tool, TurnResult, Usage, UserMessage,
 } from '@hue/core'
+import { limitCapability, limitTool, MAX_TOOL_OUTPUT_BYTES } from './limit.js'
 
 export interface AgentConfig {
   model: ModelPort
@@ -17,6 +18,11 @@ export interface AgentConfig {
   stopWhen?: StopCondition[]
   maxSteps?: number
   toolTimeoutMs?: number
+  /**
+   * 单次工具结果发给模型的文本上限（字节），默认 100 KB；超出的保留头尾。包住所有工具，包括 capability 带来的（MCP、skills、子 agent）。
+   * 传 Infinity 关掉。core 不做这件事（core 不该知道内容怎么截才不丢信息），内置工具自己还有更小的上限。
+   */
+  maxToolOutputBytes?: number
   settings?: ModelSettings
   /** 可注入，便于确定性测试 */
   now?: () => number
@@ -71,6 +77,9 @@ export function createAgent(cfg: AgentConfig): Agent {
   const newId = cfg.newId ?? (() => globalThis.crypto.randomUUID())
   const active = new Map<string, Active>()
   const asMessage = (m: string | UserMessage): UserMessage => (typeof m === 'string' ? userText(m) : m)
+  const maxOut = cfg.maxToolOutputBytes ?? MAX_TOOL_OUTPUT_BYTES
+  const tools = cfg.tools?.map(t => limitTool(t, maxOut))
+  const capabilities = cfg.capabilities?.map(c => limitCapability(c, maxOut))
 
   async function load(sessionId: string): Promise<ConversationState> {
     const events: HueEvent[] = []
@@ -110,7 +119,7 @@ export function createAgent(cfg: AgentConfig): Agent {
       for (;;) {
         inner = runTurn({
           sessionId, state, input: message, signal, now, newId,
-          model: cfg.model, instructions: cfg.instructions, tools: cfg.tools, capabilities: cfg.capabilities, context: cfg.context,
+          model: cfg.model, instructions: cfg.instructions, tools, capabilities, context: cfg.context,
           policy: cfg.policy, inputPort: cfg.input, sandbox: cfg.sandbox, stopWhen: cfg.stopWhen, maxSteps: cfg.maxSteps,
           toolTimeoutMs: cfg.toolTimeoutMs, settings: cfg.settings, pullSteer: () => me.steer.splice(0),
         })

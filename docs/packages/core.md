@@ -194,10 +194,10 @@ loop:
 - TODO(deep): **压缩的切分点**。`Compaction.throughIndex` 不能落在 assistant(tool-call) 和它的 tool 消息之间。需要一个 `safeCutIndex()` 工具函数，放 core 还是 context？
 - TODO(deep): **大附件**。`FilePart.url` 只是引用；图片、长输出放哪（store 加 blob 接口？），fold 怎么不把它们加载进内存
 - TODO(deep): **子 agent 的事件怎么流**。子会话事件是写进自己的日志、父日志只记 tool.result（现在的设计），还是父流里也转发子事件给 UI
-- DECIDE: **instructions 能否在 turn 内变化**。现在固定（缓存友好）。memory 想每步更新召回内容时怎么办：下一 turn 生效，还是开放 `Capability.onStep`
-- DECIDE: **超窗重试次数**。现在每步最多一次；是否要第二档（更激进的截断）
-- DECIDE: **工具结果大小上限**。core 是否强制截断（如 100KB）防止一次结果撑爆上下文，还是全交给 context 策略
-- DECIDE: **`parse` 失败的重试**。现在把错误回给模型，由模型重试；是否对同一工具连续失败 N 次后结束 turn
+- DONE(2026-11-12): **instructions 能否在 turn 内变化**。下一 turn 生效，不开放 `Capability.onStep`（缓存友好）。见 `hue/packages/core/DECISIONS.md` 第 5 条
+- DONE(2026-11-12): **超窗重试次数**。每步最多一次，不加第二档。见 core/DECISIONS 第 6 条
+- DONE(2026-11-12): **工具结果大小上限**。core 不截断；`@hue/runtime` 统一兜底，默认 100 KB（`maxToolOutputBytes`）。见 core/DECISIONS 第 7 条
+- DONE(2026-11-12): **`parse` 失败的重试**。错误回给模型，不设连续失败上限，受 `maxSteps` 约束。见 core/DECISIONS 第 8 条和 ADR-008
 - LATER: 结构化输出（模型最终答案要符合 schema）；一个 turn 里切换模型；token 级别的流式取消
 
 ---
