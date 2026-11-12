@@ -219,7 +219,9 @@ export function createGateway(o: GatewayOptions): Gateway {
       inputs.cancelAll()
       shutdown.abort()
       // 打断靠 shutdown 的 signal（run 收到的）；先等会话收尾再关事件流：订阅者能收到被打断的 turn.ended。不理会打断的 agent 不能让关闭一直挂着。
-      await Promise.race([Promise.all(running.values()), new Promise(r => setTimeout(r, closeTimeoutMs).unref())])
+      // 定时器不能 unref：别的句柄都没了的时候，一个 unref 的定时器撑不住事件循环，await 永远等不到（CI 上就是这样挂掉的）。等完要清掉，免得它拖着进程不退出。
+      let timer: NodeJS.Timeout | undefined
+      await Promise.race([Promise.all(running.values()), new Promise(r => { timer = setTimeout(r, closeTimeoutMs) })]).finally(() => clearTimeout(timer))
       for (const s of streams) s.end()
       server?.closeAllConnections()
       await stopped
