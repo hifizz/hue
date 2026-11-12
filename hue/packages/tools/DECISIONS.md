@@ -78,7 +78,7 @@
 
 - **选了**：默认相信（任务书要求），映射为 `readOnlyHint → none`、`idempotentHint → idempotent`、其余 unsafe；`effects: { 工具名: … }` 覆盖，`trustAnnotations: false` 一律 unsafe。
 - **风险**：规范说"除非来自可信 server，否则 annotations 不可信"。`none` 意味着可并发、可自动重发、policy 预设（`readOnly`、`coding`）可能直接放行——一个恶意 server 把有副作用的工具标成只读就能绕过确认。
-- **建议**：只对自己信任的 server 保持默认；第三方 server 用 `trustAnnotations: false`。默认值我选了任务书要的，没有选更安全的那个，这是需要你拍板的一处。
+- **建议**：只对自己信任的 server 保持默认；第三方 server 用 `trustAnnotations: false`。默认值选了任务书要的（默认信），没有选更安全的那个；2026-11-12 你确认保持默认信，见 [ADR-010](../../../docs/decisions/ADR-010-mcp-trust-annotations.md)。
 
 ## 10. MRTR 的边界
 
@@ -95,6 +95,7 @@
 | 工具名里的非法字符换成 `_`，总长 ≤ 64 | Anthropic 只收 `[a-zA-Z0-9_-]{1,64}`，MCP 工具名允许 `.`。换名后碰撞（`a.b` 和 `a_b`）没有处理。 |
 | image → `FilePart`（data URL）；audio、资源链接、嵌入资源 → 文本说明 | core 的内容类型里没有 audio / 资源；二进制资源不进上下文。 |
 | `structuredContent` 进 `ToolOutput.data`，没有文本时补一份 JSON 文本 | `data` 不发给模型，有的 server 只给结构化结果。 |
+| 结果大小：MCP 工具的结果也被 `@hue/runtime` 的 `maxToolOutputBytes`（默认 100 KB）兜底 | 见 core/DECISIONS 第 7 条；以前这里没有统一上限。 |
 | 不校验 `inputSchema` / `outputSchema` | core 不带校验器；server 自己校验，错误作为 `isError` 回给模型。 |
 | 请求里的 `progressToken` 就是请求 ID | 通知靠它对回请求；进度只转给 `ctx.progress`，不重置超时。 |
 | HTTP 不支持 `subscriptions/listen`、认证只有固定头 | 求职版不做；OAuth 是 `LATER`。 |

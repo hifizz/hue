@@ -44,7 +44,14 @@
 - **子失败**：返回 `isError` 的工具结果（带原因和它最后说的话），父自己决定重试还是放弃，不让整个父 turn 失败。
 - **没做**：子 agent 的 token 用量不汇总进父的 `usage`（只在 `tool.result.data.usage` 里）；父进程崩溃时，子会话里没关的 turn 要等有人 `run` 那个子会话才会修复（子会话 id 是随机的，实际上没人会去）——日志里会留一个没有 `turn.ended` 的子 turn。
 
-## 7. 其他
+## 7. 工具结果大小：runtime 兜底，core 不管
+
+- **选了**：`createAgent` 把所有工具（含 `capabilities` 带来的）的结果文本合计限制在 `maxToolOutputBytes`（默认 100 KB，`Infinity` 关闭），超出保留头尾、写明省略字节数。只限发给模型的 `text` / `json`，不动 `data`、文件块和 `isError`。
+- **为什么**：见 core DECISIONS 第 7 条。runtime 是唯一知道所有工具的地方，core 已冻结。
+- **代价**：写进日志的 `tool.result` 也是截过的，日志里没有完整原文；100 KB 约 25k token，默认值没调过；绕过 runtime 直接用 `runTurn` 的人没有这一道。
+- **何时要改**：有真实数据后调默认值；需要完整原文落盘时。
+
+## 8. 其他
 
 | 决定 | 原因 |
 |---|---|

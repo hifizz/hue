@@ -19,6 +19,10 @@ agent.interrupt('s1')                 // 打断当前 turn
 | `load(sessionId)` | 从日志重建状态 |
 | `drain(gen, onEvent?)` | 把 `run()` 跑完，拿返回值 |
 
+## 工具结果上限
+
+`createAgent({ maxToolOutputBytes })`：每个工具（含 MCP、skills、子 agent 等 capability 带来的）发给模型的文本合计不超过这个字节数，默认 100 KB，`Infinity` 关闭。超出的保留头尾，中间写明省略了多少字节。`data`、文件块、`isError` 不受影响。写进日志的 `tool.result` 也是截过的。
+
 ## 子 agent
 
 ```ts
@@ -38,7 +42,7 @@ npx tsc -p packages/runtime
 node --import tsx --test packages/runtime/test/*.test.ts   # npm test 也会跑
 ```
 
-测试里用内存日志和脚本化模型，覆盖子 agent（并发、上下文隔离、事件树、失败、打断含排队中的）和：落盘顺序（调用方收到事件时已在盘上、工具开始时 tool.call 已在盘上）、续聊、崩溃恢复、会话互斥、插话（含 turn 结束瞬间才到的）、打断、放弃 run、落盘失败。
+测试里用内存日志和脚本化模型，覆盖子 agent（并发、上下文隔离、事件树、失败、打断含排队中的）和：工具结果上限（头尾保留、按字节、capability 的工具也被包住），落盘顺序（调用方收到事件时已在盘上、工具开始时 tool.call 已在盘上）、续聊、崩溃恢复、会话互斥、插话（含 turn 结束瞬间才到的）、打断、放弃 run、落盘失败。
 
 ## 没验证的
 

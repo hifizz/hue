@@ -38,7 +38,7 @@ createAgent({ model, store, capabilities: [fs, gh] })   // 用完 await fs.close
 
 - 按 **2026-07-28 规范**（无状态：没有握手，每个请求的 `_meta` 自带版本、能力、身份）。先调 `server/discover`；对面是老 server（discover 报任何非新协议的错误，或 stdio 上不作声，或 HTTP 上 400/404/405 且不是新协议的错误体）就回退到 2025-11-25 的 `initialize` 握手，差异都关在 `mcp/legacy.ts`。`fallback: false` 可关。
 - 工具名 `<name>__<工具名>`（服务商只接受 `[a-zA-Z0-9_-]`，别的字符换成 `_`），顺序是 server 给的，按 `ttlMs` 缓存。
-- **effects** 来自 annotations：`readOnlyHint` → none，`idempotentHint` → idempotent，其余 unsafe；`effects: { 工具名: … }` 可覆盖，`trustAnnotations: false` 则全部 unsafe。
+- **effects** 来自 annotations：`readOnlyHint` → none，`idempotentHint` → idempotent，其余 unsafe；`effects: { 工具名: … }` 可覆盖，`trustAnnotations: false` 则全部 unsafe。**默认信 server 的 annotations**（[ADR-010](../../../docs/decisions/ADR-010-mcp-trust-annotations.md)）：连第三方或不熟的 server 时必须设 `trustAnnotations: false`，否则它把有副作用的工具标成只读，就能绕过确认和自动重发保护。
 - **server 要更多输入（MRTR）**：表单类 elicitation 交给 `ctx.requestInput`（就是 core 的 InputPort 通道），答案连同 `requestState` 放回原请求、用新 ID 重发，最多 5 轮。sampling / roots / URL 模式不支持，返回明确的错误。
 - **取消**：stdio 发 `notifications/cancelled`；HTTP 关掉响应流（老协议的 HTTP 要发通知）。
 - **连接断了**：只读 / 幂等的工具用新 ID 重发一次；不可重复的不重发，告诉模型"结果未知"。stdio server 意外退出后下次请求重新拉起并重新探测。
