@@ -9,7 +9,7 @@
 ## 接口草图（非最终）
 ```ts
 export const readFile: () => Tool
-export const editFile: () => Tool   // DECIDE: 搜索替换 vs 行号 patch vs unified diff
+export const editFile: () => Tool   // DONE(ADR-007): 精确字符串替换
 export const bash: (opts?: { cwd?: string; timeoutMs?: number }) => Tool
 export const mcp: {
   // 无状态：connect 不做握手，只建传输；可选先调 server/discover 选版本
@@ -26,8 +26,8 @@ interface McpOptions {
 ## 关键问题
 - TODO(deep): 手写 MCP client，按 2026-07-28 规范（无状态），细节见下方「MCP client 设计」。先 stdio，再 Streamable HTTP
 - TODO(deep): 工具结果太大怎么办——截断、落盘给路径、由 context 折叠？和 context 包的边界
-- DECIDE: edit 工具格式（各家对比是很好的拆解素材）
-- DECIDE: 工具错误回传给模型的格式（isError + 文本？结构化？）
+- DONE(ADR-007): edit 工具用精确字符串替换（各家对比是很好的拆解素材）
+- DONE(ADR-008): 工具错误回传：`isError` + 文本
 - TODO(deep): 工具接入规范文档——命名、schema 约定、幂等/副作用标注（给 policy 和回放用）
 - LATER: MCP resources / prompts、subscriptions/listen、tasks extension、OAuth（Roots、Sampling、Logging 已被规范弃用，不做）
 
@@ -97,7 +97,7 @@ interface McpOptions {
    - server 主动发来的 `roots/list` / `sampling/createMessage` / `elicitation/create`：求职版一律回错误，或只对 elicitation 做简单适配
 3. 两种模式对上层暴露同一个 `McpClient` 接口，差异全部关在一个 `legacy.ts` 里。
 - DONE: 回退默认开（tools DECISIONS 第 7 条）
-- TODO(verify): 选 2 个真实 server，确认各自实现的是哪个版本；官方 SDK 当前版本是否已支持 2026-07-28
+- DONE(ADR-009): 真实 server 已确认（filesystem 2.2.0 走 2026-07-28，2025.8.21 走回退，2026-11-10）。TODO(verify): 官方 SDK 当前版本是否已支持 2026-07-28 仍未核实
 
 ### 8. 测试计划
 - 协议级单测：`_meta` 每个请求都带齐；-32022 换版本重发；缺 `resultType` 按 complete；MRTR 一轮和两轮；断流重发用新 ID。

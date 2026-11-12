@@ -12,8 +12,8 @@ export function ai(id: `${string}:${string}`, opts?: ProviderOptions): ModelPort
 ```
 
 ## 关键问题
-- DECIDE: 直接封装 AI SDK provider 还是 pi-ai。求职版不在这层花时间
-- DECIDE: token 计数放这里还是 context
+- DONE(ADR-005): 手写 fetch + SSE，不封装 AI SDK provider，也没评估 pi-ai
+- DONE(ADR-006): 计数放 context（近似）；`countTokens` 在 ai 里保持可选、暂不实现
 - LATER: 自己实现 Anthropic/OpenAI 原生 provider（适合写一篇拆解）
 
 ## 各家怎么做（对照答案）

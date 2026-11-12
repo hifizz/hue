@@ -23,7 +23,7 @@ Hue 不声称比 Pi / Claude Code 更好；它是**可读、可换**的 13 个�
 
 ## 成功标准
 - 编码 agent 配方能在一个真实仓库里修一个真实 bug（录屏）
-- 每个求职版包 README ≤ 一下午读完：DECIDE: 用代码行数上限量化？（候选：每包 ≤ 800 行 / ≤ 1500 行）
+- 每个求职版包 README ≤ 一下午读完：DONE(ADR-004): 用每包 src/ 行数预算量化，见 `hue/scripts/budget.mjs`
 - 每个包至少 1 份 ADR
 - eval 报告能复现（一条命令）
 

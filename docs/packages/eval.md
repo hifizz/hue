@@ -16,7 +16,7 @@ export interface EvalTask { id: string; setup(): Promise<Workspace>; prompt: str
 - TODO(deep): 任务集设计——~20 个：编码 bug 修复、长上下文、需要 skill、需要 MCP、需要记忆、需要子 agent 各几题
 - DECIDE: 对照组——同模型下 Pi（必选）、Claude Code（可选）
 - TODO(deep): 失败案例分析模板——现象、发生在哪一层、改了什么、前后数据
-- DECIDE: 评分方式——测试通过（客观）为主，LLM judge 为辅？
+- DONE(ADR-013): 只用客观判分（命令退出码），暂无 LLM judge
 
 ## 各家怎么做（对照答案）
 - SWE-bench Lite / Terminal-Bench 作为任务来源参考 TODO(verify)

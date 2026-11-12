@@ -18,9 +18,9 @@ export const compaction: {
 ## 关键问题
 - TODO(deep): 何时触发压缩——阈值（如 80%）、按轮、模型报错后？
 - TODO(deep): 摘要 prompt 设计与评估——摘要丢了关键信息怎么发现（用 eval 测）
-- DECIDE: 压缩结果写回日志（context.compacted 事件）还是只在内存
+- DONE(ADR-012): 压缩结果写回日志（context.compacted 事件）
 - TODO(deep): prompt caching 友好性——压缩会打破缓存前缀，代价多少
-- DECIDE: token 计数——近似（字符/4）还是 tokenizer
+- DONE(ADR-006): token 计数用偏高的近似，不用 tokenizer（实现的系数与"字符/4"不同，见 ADR）
 
 ## 各家怎么做（对照答案）
 - Pi：compaction 在 coding-agent 内 TODO(verify)

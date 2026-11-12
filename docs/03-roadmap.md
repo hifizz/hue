@@ -4,7 +4,7 @@
 ### 第 1 周：能跑的最小内核
 - [ ] monorepo 骨架、CI、lint
 - [ ] core：类型、事件 v1、Tool/Store 接口、loop（async generator）
-- [ ] ai：薄封装（DECIDE: AI SDK 还是 pi-ai）
+- [ ] ai：薄封装（DONE(ADR-005): 手写 fetch，不封装 AI SDK）
 - [ ] tools：read / edit / bash；手写 MCP client（规范 2026-07-28 无状态，stdio 先，兼容 2025-11-25 回退）
 - [ ] 里程碑：编码 agent 配方在真实仓库修一个 bug
 - [ ] 博客：构建日志 #1 loop、#2 MCP

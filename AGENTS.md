@@ -26,7 +26,7 @@ npm run budget                # 每包 src/ 行数预算
 npx tsc -p learn              # learn/ 类型检查
 node --import tsx --test learn/*/*.test.ts   # learn/ 的测试（npm test 不包含它们）
 ```
-`npm run check`（`tsc -b`）目前不能用：`hue/` 根目录没有 `tsconfig.json`。在补上之前用 `npx tsc -p packages/<包>`。
+`npm run check`（`scripts/check.mjs`）对每个包、`examples/`、`learn/` 各跑一次 `tsc -p`，任何一个有错就失败。没有用 `tsc -b`：各包是 noEmit、没开 composite。只检查一个包用 `npx tsc -p packages/<包>`。`tsconfig.base.json` 还打开了未使用变量 / 参数、隐式返回、`override`、`noUncheckedIndexedAccess` 等严格选项，它们就是本仓库的 lint（不用 ESLint，见 ADR-022）。CI 在 `.github/workflows/ci.yml`：`check`、`budget`、`test`。
 
 ## 架构硬规则
 - 事件日志是唯一事实源，消息历史是 `fold(events)` 的投影。
@@ -61,7 +61,7 @@ packages/<包>/
 ## 文档标记
 | 标记 | 含义 |
 |---|---|
-| `DECIDE:` | 待拍板，已列候选。拍板后写 ADR（`docs/decisions/ADR-000-template.md`）并改文档 |
+| `DECIDE:` | 待拍板，已列候选。拍板后写 ADR（`docs/decisions/ADR-000-template.md`）并改文档。已有的 ADR 和每个标记的去向见 `docs/decisions/README.md` |
 | `TODO(deep):` | 需要单独深挖 |
 | `TODO(verify):` | 需对照源码核实 |
 | `LATER:` | 求职版不做 |

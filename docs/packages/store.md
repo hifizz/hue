@@ -15,8 +15,8 @@ export const memoryStore: () => Store
 
 ## 关键问题
 - TODO(deep): 回放与恢复——从日志重建 history；崩溃在工具执行中途怎么办（TARS：副作用不重放）
-- DECIDE: 存原始事件还是存派生的 Message 快照，或两者
-- DECIDE: 分支（fork 会话）求职版要不要
+- DONE(ADR-011): 只存原始事件，不存快照
+- LATER: 分支（fork 会话）只设计不实现，见 store DECISIONS 第 3 条
 
 ## 各家怎么做（对照答案）
 - Pi durable 的持久化方式 TODO(verify)
