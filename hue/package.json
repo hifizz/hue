@@ -6,7 +6,7 @@
     "packages/*"
   ],
   "scripts": {
-    "check": "tsc -b",
+    "check": "node scripts/check.mjs",
     "test": "node --import tsx --test 'packages/*/test/**/*.test.ts'",
     "budget": "node scripts/budget.mjs",
     "hue": "node packages/cli/bin/hue.mjs"

@@ -53,7 +53,7 @@ export function resolveSlashCompletion(typed: string, selected: string): string 
   if (SLASH_NAMES.has(typed)) return typed
   if (SLASH_NAMES.has(selected) && selected.startsWith(typed)) return selected
   const prefixes = [...SLASH_NAMES].filter(name => name.startsWith(typed))
-  if (prefixes.length === 1) return prefixes[0]
+  if (prefixes.length === 1) return prefixes[0] ?? typed
   return typed
 }
 

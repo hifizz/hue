@@ -1,0 +1,32 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# 同一分支的新提交取消还在跑的旧任务
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: hue
+    steps:
+      - uses: actions/checkout@v4
+      # store 用 node:sqlite，要 Node >= 22.5；本地开发用 24。
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: hue/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - run: npm run budget
+      # ubuntu 镜像自带 Docker，sandbox 的 docker 用例会真跑；没有 API key，ai 的在线合同用例自动 skip。
+      - run: npm test

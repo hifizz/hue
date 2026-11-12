@@ -99,7 +99,7 @@ test('取消:信号一触发,导出立刻停止,不再重试', async () => {
 
 test('请求超时当作连接失败重试', async () => {
   const hits: number[] = []
-  const server = createServer((req, res) => { hits.push(1); if (hits.length === 1) return; res.writeHead(200); res.end('{}') }) // 第一次不回
+  const server = createServer((_req, res) => { hits.push(1); if (hits.length === 1) return; res.writeHead(200); res.end('{}') }) // 第一次不回
   await new Promise<void>(r => server.listen(0, '127.0.0.1', r))
   try { await otlpHttp({ url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1/traces`, resource, sleep, timeoutMs: 100 }).export([span()], sig()); assert.equal(hits.length, 2) } finally { server.closeAllConnections(); server.close() }
 })

@@ -31,7 +31,7 @@ import type { AssistantMessage, HueEvent, InputPort, InputResponse, Usage, UserM
 import type { SessionInfo } from '@hue/store'
 import type { RunCliOptions } from '../recipe.js'
 import { drain, gitBranch, openRecipe } from '../recipe.js'
-import { readLastSession, sessionName, writeLastSession, writeSessionName } from '../session.js'
+import { sessionName, writeLastSession, writeSessionName } from '../session.js'
 import { HueAutocompleteProvider } from './autocomplete.js'
 import { HOTKEYS, SLASH_COMMANDS, SLASH_NAMES, parseShellBang, parseSlash } from './commands.js'
 import { color, editorTheme, formatCwd, formatDuration, formatTokens, formatToolLine, markdownTheme, selectTheme } from './theme.js'
@@ -113,12 +113,11 @@ class Transcript implements Component {
     if (this.openAssistant && this.current) return
     const md = new Markdown('', 1, 0, markdownTheme)
     const think = new Text('', 1, 0)
-    let text = '', thinking = ''
+    let thinking = ''
     const entry = {
       text: '',
       thinking: '',
       set: (next: string, nextThink: string) => {
-        text = next
         thinking = nextThink
         entry.text = next
         entry.thinking = nextThink
@@ -648,6 +647,7 @@ export async function runInteractive(opts: RunCliOptions): Promise<number> {
       void handleSlash('copy', '')
       return { consume: true }
     }
+    return undefined
   })
 
   if (opts.signal) {

@@ -1,4 +1,4 @@
-import type { EventStore, HueEvent } from '@hue/core'
+import type { HueEvent } from '@hue/core'
 import { checkAppend, parseRow } from './check.js'
 import type { ListableStore, SessionInfo } from './types.js'
 

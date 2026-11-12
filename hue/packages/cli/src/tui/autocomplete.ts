@@ -3,7 +3,7 @@ import { CombinedAutocompleteProvider, type AutocompleteItem } from '@earendil-w
 import { applySlashNameCompletion } from './commands.js'
 
 export class HueAutocompleteProvider extends CombinedAutocompleteProvider {
-  applyCompletion(
+  override applyCompletion(
     lines: string[],
     cursorLine: number,
     cursorCol: number,

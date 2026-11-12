@@ -1,2 +1,4 @@
 { "compilerOptions": { "target": "ES2023", "module": "NodeNext", "moduleResolution": "NodeNext", "strict": true,
-  "lib": ["ES2023", "DOM"], "noEmit": true, "skipLibCheck": true, "verbatimModuleSyntax": true } }
+  "lib": ["ES2023", "DOM"], "noEmit": true, "skipLibCheck": true, "verbatimModuleSyntax": true,
+  "noUnusedLocals": true, "noUnusedParameters": true, "noImplicitReturns": true, "noImplicitOverride": true,
+  "noFallthroughCasesInSwitch": true, "noUncheckedIndexedAccess": true } }
