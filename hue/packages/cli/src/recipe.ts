@@ -7,21 +7,28 @@ import { model } from '@hue/ai'
 import { sqliteStore, type SqliteStore } from '@hue/store'
 import { observeStore, telemetry as makeTelemetry } from '@hue/telemetry'
 import type { Telemetry } from '@hue/telemetry'
-import { codingTools } from '@hue/tools'
+import { codingTools, glob, grep, list, read } from '@hue/tools'
 import { docker, local } from '@hue/sandbox'
 import { presets } from '@hue/policy'
 import { chain, foldToolResults, summarize } from '@hue/context'
 import { file as memoryDir } from '@hue/memory'
-import { createAgent } from '@hue/runtime'
+import { createAgent, subagentTool } from '@hue/runtime'
 import type { Agent, RunResult } from '@hue/runtime'
 import { fromDir as skillsDir } from '@hue/skills'
+import type { Scan } from '@hue/skills'
 import type { CliArgs, SandboxMode } from './args.js'
 import { jsonPrinter, textPrinter } from './print.js'
 import { readLastSession } from './session.js'
 
 export const INSTRUCTIONS = `You are a coding agent working in the current directory (a git repository).
 Every tool and shell command already runs in the repository root: use relative paths and never cd to another directory.
-Find the cause before changing anything: read the code and run the tests. Make the smallest change that fixes the problem, then re-run the tests to confirm. Say what you changed and why.`
+Find the cause before changing anything: read the code and run the tests. Make the smallest change that fixes the problem, then re-run the tests to confirm. Say what you changed and why.
+When a question needs searching more than a couple of places, delegate it to the task tool: it gets its own context and reports back a summary, keeping this conversation short.`
+
+/** 子 agent 只读：独立上下文做调研，返回结论。不带写工具和 bash，所以并行派发也安全。 */
+export const SUBAGENT_INSTRUCTIONS = `You are a read-only research sub-agent working in the current directory.
+Investigate what the task asks: search and read the code, then report concrete findings with file paths and line numbers.
+You cannot modify files or run shell commands. Keep the final answer short.`
 
 export function modelFromEnv(opts: { model?: string, trace?: (e: object) => void } = {}): ModelPort {
   const name = opts.model ?? process.env.HUE_MODEL ?? 'claude-sonnet-5-5'
@@ -53,10 +60,24 @@ export interface RunCliOptions {
   signal?: AbortSignal
 }
 
-function capabilities(): Capability[] {
-  const out: Capability[] = []
-  if (process.env.HUE_SKILLS) out.push(skillsDir(process.env.HUE_SKILLS.split(':')))
-  if (process.env.HUE_MEMORY) out.push(memoryDir(process.env.HUE_MEMORY))
+interface Capabilities {
+  list: Capability[]
+  /** skills capability 自带的扫描器，欢迎卡用它数技能。 */
+  skillScan?: () => Promise<Scan>
+  memoryEnabled: boolean
+}
+
+function capabilities(): Capabilities {
+  const out: Capabilities = { list: [], memoryEnabled: false }
+  if (process.env.HUE_SKILLS) {
+    const cap = skillsDir(process.env.HUE_SKILLS.split(':'))
+    out.list.push(cap)
+    out.skillScan = () => cap.scan()
+  }
+  if (process.env.HUE_MEMORY) {
+    out.list.push(memoryDir(process.env.HUE_MEMORY))
+    out.memoryEnabled = true
+  }
   return out
 }
 
@@ -106,6 +127,8 @@ export interface Recipe {
   setModel: (name: string) => void
   setInput: (input: InputPort) => void
   agent: Agent
+  skillScan?: () => Promise<Scan>
+  memoryEnabled: boolean
   dispose: () => Promise<void>
 }
 
@@ -135,8 +158,23 @@ export async function openRecipe(opts: RunCliOptions): Promise<Recipe> {
   let currentModel = modelFromEnv({ model: args.model, trace })
   let currentInput = opts.input ?? decline
   const policy = opts.policy ?? policyFor(args.sandbox, args.yes)
-  const tools = codingTools()
   const context: ContextStrategy = chain(foldToolResults(), summarize({ model: relay(() => currentModel) }))
+
+  // 子 agent：只读工具、独立上下文，effects 'none' 让父 agent 能在同一步里并行派好几个。
+  // 和父 agent 共用 store，子会话的事件在日志里用 parent 连到那次 task 调用上。
+  const subAgent = createAgent({
+    model: relay(() => currentModel),
+    store,
+    instructions: SUBAGENT_INSTRUCTIONS,
+    tools: [read(), list(), glob(), grep()],
+    sandbox,
+    policy,
+    context,
+    input: relay(() => currentInput),
+    maxSteps: 12,
+  })
+  const tools = [...codingTools(), subagentTool({ agent: subAgent, effects: 'none' })]
+  const caps = capabilities()
   const agent = createAgent({
     model: relay(() => currentModel),
     store,
@@ -145,7 +183,7 @@ export async function openRecipe(opts: RunCliOptions): Promise<Recipe> {
     sandbox,
     policy,
     context,
-    capabilities: capabilities(),
+    capabilities: caps.list,
     input: relay(() => currentInput),
     maxSteps: 40,
   })
@@ -155,6 +193,8 @@ export async function openRecipe(opts: RunCliOptions): Promise<Recipe> {
     getModel: () => currentModel,
     setModel: name => { currentModel = modelFromEnv({ model: name, trace }) },
     setInput: input => { currentInput = input },
+    skillScan: caps.skillScan,
+    memoryEnabled: caps.memoryEnabled,
     dispose: async () => {
       db.close()
       await tel?.shutdown(AbortSignal.timeout(10_000))

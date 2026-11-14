@@ -24,9 +24,11 @@ cd hue
 
 ## 交互界面
 
-对话记录在中间，下面是多行编辑器，再往下是状态栏（目录、会话、模型、上下文用量）。快捷键见 TUI 里的 `/hotkeys`。
+打开先是一张欢迎卡：模型 / 沙箱 / 策略 / 上下文（技能数、记忆开关）/ 会话五行状态，右栏是 `@`、`!`、`task`、`/model`、`/resume` 的用法提示。
 
-第一批斜杠命令：`/quit`、`/new`、`/resume`、`/session`、`/model`、`/copy`、`/name`、`/export`、`/hotkeys`，输入 `/` 即可搜索。`!command` / `!!command` 走现有的 bash 工具和 policy/sandbox，不另开本地 shell。
+对话区每条目带状态点：`❯` 是用户消息，`●` 按状态着色（pending 金、成功绿、失败红、子 agent 青）。工具调用显示 `name(关键参数)`，结果收成一行 `└` 摘要（`4 matches`、`84 lines`、`exit 1 · …`）；edit 直接渲染 `-`/`+` 红绿 diff；`task` 下面是 `子 agent · N 步 · ↑↓` 和 `├` 工具树。运行中编辑器上方有 spinner（esc 中断），底部单行状态栏（`↑↓` 用量、缓存、上下文占用、模型）。
+
+第一批斜杠命令：`/quit`、`/new`、`/resume`、`/session`、`/model`、`/copy`、`/name`、`/export`、`/hotkeys`，输入 `/` 即可搜索。`!command` / `!!command` 走现有的 bash 工具和 policy/sandbox，不另开本地 shell。`@` 补全文件。`task` 工具派只读子 agent（独立上下文）并行调研，子会话和父会话落在同一个事件库里。
 
 `/compact`、`/tree`、`/fork`、`/clone`、`/mcp` 以及 Pi 自己的登录和分享命令还没有对应后端，这一版不做。
 
