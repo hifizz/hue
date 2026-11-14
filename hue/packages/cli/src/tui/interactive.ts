@@ -1,13 +1,14 @@
 /**
- * 交互 TUI：三段式布局（对话、编辑器、状态栏），只把 Hue 事件映射成显示。
- * 视觉对齐 Pi，不复制它的源码。
+ * 交互 TUI：对话区 + 运行指示 + 编辑器 + 单行状态栏，只把 Hue 事件映射成显示。
+ * 视觉对齐 pi-tui 默认交互，不复制 Pi 的源码。
  */
 import { execFileSync } from 'node:child_process'
-import { writeFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { readFileSync, writeFileSync } from 'node:fs'
+import { basename, resolve } from 'node:path'
 import {
   Editor,
   Key,
+  Loader,
   Markdown,
   ProcessTerminal,
   ScrollView,
@@ -30,13 +31,17 @@ import { addUsage, emptyUsage } from '@hue/core'
 import type { AssistantMessage, HueEvent, InputPort, InputResponse, Usage, UserMessage } from '@hue/core'
 import type { SessionInfo } from '@hue/store'
 import type { RunCliOptions } from '../recipe.js'
-import { drain, gitBranch, openRecipe } from '../recipe.js'
+import { drain, openRecipe, type Recipe } from '../recipe.js'
 import { sessionName, writeLastSession, writeSessionName } from '../session.js'
 import { HueAutocompleteProvider } from './autocomplete.js'
+import { Bullet, Seq, ToolBlock, toolSig, type ToolState } from './blocks.js'
 import { HOTKEYS, SLASH_COMMANDS, SLASH_NAMES, parseShellBang, parseSlash } from './commands.js'
-import { color, editorTheme, formatCwd, formatDuration, formatTokens, formatToolLine, markdownTheme, selectTheme } from './theme.js'
+import { color, editorTheme, formatCwd, formatDuration, formatTokens, markdownTheme, selectTheme } from './theme.js'
+import { WelcomeCard, type WelcomeInfo } from './welcome.js'
 
 const shortId = (id: string) => id.slice(0, 8)
+const displayModel = (id: string) => id.replace(/^anthropic:/, '')
+const VERSION: string = (JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as { version: string }).version
 
 const textOf = (content: Array<{ type: string, text?: string }>): string =>
   content.map(c => (c.type === 'text' ? c.text ?? '' : '')).join('')
@@ -59,14 +64,13 @@ class Transcript implements Component {
   showThinking = false
   private lastText = ''
   private blocks: Component[] = []
-  private tools: Array<{ refresh: () => void }> = []
+  private tools: ToolBlock[] = []
   private thinks: Array<{ refresh: () => void }> = []
   private openAssistant = false
-  private current?: {
-    text: string
-    thinking: string
-    set: (text: string, thinking: string) => void
-  }
+  private current?: { text: string, thinking: string, set: (text: string, thinking: string) => void }
+  /** 运行中的工具块：callId → block；task 的 progress 也按 callId 挂到它下面。 */
+  private pendingTools = new Map<string, ToolBlock>()
+  onTaskDone?: (callId: string, childSessionId: string, answer: string) => void
 
   invalidate(): void {
     for (const b of this.blocks) b.invalidate()
@@ -87,22 +91,24 @@ class Transcript implements Component {
     this.blocks = []
     this.tools = []
     this.thinks = []
+    this.pendingTools.clear()
     this.openAssistant = false
     this.current = undefined
     this.lastText = ''
   }
 
-  addSystem(text: string, error = false): void {
+  addBlock(c: Component): void {
     this.current = undefined
     this.openAssistant = false
-    this.blocks.push(new Text(error ? color.red(text) : color.dim(text), 1, 0))
+    this.blocks.push(c)
+  }
+
+  addSystem(text: string, error = false): void {
+    this.addBlock(new Text(error ? color.red(text) : color.dim(text), 1, 0))
   }
 
   addUser(text: string): void {
-    this.current = undefined
-    this.openAssistant = false
-    this.blocks.push(new Text(color.gold('You'), 1, 0))
-    this.blocks.push(new Markdown(text, 1, 0, markdownTheme, { color: color.sky }))
+    this.addBlock(new Bullet(new Markdown(text, 0, 0, markdownTheme, { color: color.sky }), '❯'))
   }
 
   lastAssistantText(): string | undefined {
@@ -111,12 +117,11 @@ class Transcript implements Component {
 
   private startAssistant(): void {
     if (this.openAssistant && this.current) return
-    const md = new Markdown('', 1, 0, markdownTheme)
-    const think = new Text('', 1, 0)
+    const md = new Markdown('', 0, 0, markdownTheme)
+    const think = new Text('', 0, 0)
     let thinking = ''
     const entry = {
-      text: '',
-      thinking: '',
+      text: '', thinking: '',
       set: (next: string, nextThink: string) => {
         thinking = nextThink
         entry.text = next
@@ -131,8 +136,7 @@ class Transcript implements Component {
       think.setText(body ? color.dim(color.italic(body)) : '')
     }
     this.thinks.push({ refresh: refreshThink })
-    this.blocks.push(think)
-    this.blocks.push(md)
+    this.blocks.push(new Bullet(new Seq([think, md]), color.dim('●')))
     this.current = entry
     this.openAssistant = true
   }
@@ -155,39 +159,51 @@ class Transcript implements Component {
 
   addTool(name: string, args: unknown, callId: string): void {
     this.openAssistant = false
-    const view = new Text('', 1, 0)
-    const state = { name, args, callId, result: undefined as string | undefined, isError: false, durationMs: undefined as number | undefined }
-    const refresh = () => {
-      let s = formatToolLine(state.name, state.args, this.toolsExpanded)
-      if (state.result !== undefined) {
-        const lines = state.result.replace(/\r/g, '').split('\n')
-        const shown = this.toolsExpanded ? lines : lines.slice(0, 5)
-        if (shown.length) s += `\n${state.isError ? color.red(shown.join('\n')) : color.muted(shown.join('\n'))}`
-        if (!this.toolsExpanded && lines.length > 5) {
-          s += `\n${color.dim(`... (${lines.length - 5} more lines, Ctrl+O to expand)`)}`
-        }
-        if (state.durationMs !== undefined) s += `\n${color.dim(`Took ${formatDuration(state.durationMs)}`)}`
-      }
-      view.setText(s)
+    const state: ToolState = {
+      name, input: args, callId, done: false, isError: false,
+      resultText: '', childLines: [],
     }
-    refresh()
-    this.tools.push({ refresh })
-    this.blocks.push(view)
-    this.pendingTools.set(callId, { state, refresh })
+    const block = new ToolBlock(state, () => this.toolsExpanded)
+    this.tools.push(block)
+    this.blocks.push(block)
+    this.pendingTools.set(callId, block)
   }
 
-  private pendingTools = new Map<string, { state: { result?: string, isError: boolean, durationMs?: number }, refresh: () => void }>()
-
-  setToolResult(callId: string, result: string, isError: boolean, durationMs: number): void {
-    const item = this.pendingTools.get(callId)
-    if (!item) return
-    item.state.result = result
-    item.state.isError = isError
-    item.state.durationMs = durationMs
-    item.refresh()
+  addTaskProgress(callId: string, tool: string): void {
+    const block = this.pendingTools.get(callId)
+    if (!block || block.state.name !== 'task') return
+    block.state.childLines.push(tool)
   }
 
-  refreshTools(): void { for (const t of this.tools) t.refresh() }
+  setToolResult(callId: string, result: string, isError: boolean, durationMs: number, synthetic?: string, data?: unknown): void {
+    const block = this.pendingTools.get(callId)
+    if (!block) return
+    const s = block.state
+    s.done = true
+    s.isError = isError
+    s.durationMs = durationMs
+    s.synthetic = synthetic
+    s.resultText = result
+    this.pendingTools.delete(callId)
+    if (s.name === 'task') {
+      const d = (data ?? {}) as { sessionId?: string, steps?: number, usage?: Usage, reason?: string }
+      if (d.steps !== undefined) {
+        s.taskMeta = `子 agent · 独立上下文 · ${d.steps} 步${d.usage ? ` · ↑${formatTokens(d.usage.inputTokens)} ↓${formatTokens(d.usage.outputTokens)}` : ''}`
+      } else if (isError) {
+        s.taskMeta = '子 agent 未完成'
+      }
+      const answer = result.replace(/\r/g, '').split('\n').map(l => l.trim()).find(l => l) ?? ''
+      s.childTail = isError ? color.red(answer) : answer
+      if (d.sessionId) this.onTaskDone?.(callId, d.sessionId, answer)
+    }
+  }
+
+  /** task 结果回来后从事件库回填子 agent 的工具树（含参数签名）。 */
+  fillTaskTree(callId: string, lines: string[]): void {
+    const block = this.tools.find(b => b.state.callId === callId)
+    if (block) block.state.childLines = lines
+  }
+
   refreshThinking(): void { for (const t of this.thinks) t.refresh() }
 
   apply(e: HueEvent): void {
@@ -204,8 +220,13 @@ class Transcript implements Component {
       case 'tool.call':
         this.addTool(e.name, e.input, e.callId)
         break
+      case 'tool.progress': {
+        const d = e.data as { subagent?: string, tool?: string }
+        if (d?.tool) this.addTaskProgress(e.callId, d.tool)
+        break
+      }
       case 'tool.result':
-        this.setToolResult(e.callId, textOf(e.content), e.isError, e.durationMs)
+        this.setToolResult(e.callId, textOf(e.content), e.isError, e.durationMs, e.synthetic, e.data)
         break
       case 'context.compacted':
         this.addSystem(`上下文已自动压缩（${e.compaction.strategy}，${formatTokens(e.compaction.tokensBefore)} → ${formatTokens(e.compaction.tokensAfter)}）`)
@@ -221,49 +242,29 @@ class Transcript implements Component {
 }
 
 class Footer implements Component {
-  cwd = ''
-  branch?: string
-  name?: string
-  sessionId = ''
-  modelId = ''
   usage: Usage = emptyUsage()
   contextTokens?: number
   contextWindow = 0
-  busy = false
+  modelId = ''
 
   invalidate(): void {}
-
   render(width: number): string[] {
-    let left = formatCwd(this.cwd)
-    if (this.branch) left += ` (${this.branch})`
-    if (this.name) left += ` • ${this.name}`
-    else left += ` • ${shortId(this.sessionId)}`
-    if (this.busy) left += ' • running'
-    const pwdLine = truncateToWidth(color.dim(left), width, color.dim('...'))
-
     const parts: string[] = []
     if (this.usage.inputTokens) parts.push(`↑${formatTokens(this.usage.inputTokens)}`)
     if (this.usage.outputTokens) parts.push(`↓${formatTokens(this.usage.outputTokens)}`)
     if (this.usage.cacheReadTokens) parts.push(`R${formatTokens(this.usage.cacheReadTokens)}`)
     if (this.usage.cacheWriteTokens) parts.push(`W${formatTokens(this.usage.cacheWriteTokens)}`)
-    const window = this.contextWindow
-    if (window) {
+    if (this.contextWindow) {
       const used = this.contextTokens
-      const label = used === undefined ? `?/${formatTokens(window)}` : `${((used / window) * 100).toFixed(1)}%/${formatTokens(window)}`
-      const ratio = used === undefined ? 0 : used / window
+      const label = used === undefined ? `?/${formatTokens(this.contextWindow)}` : `${((used / this.contextWindow) * 100).toFixed(1)}%/${formatTokens(this.contextWindow)}`
+      const ratio = used === undefined ? 0 : used / this.contextWindow
       parts.push(ratio > 0.9 ? color.red(label) : ratio > 0.7 ? color.gold(label) : label)
     }
-    const statsLeft = parts.join(' ')
+    const left = parts.join(' ')
     const right = this.modelId
-    const leftW = visibleWidth(statsLeft)
-    const rightW = visibleWidth(right)
-    let stats: string
-    if (leftW + 2 + rightW <= width) {
-      stats = statsLeft + ' '.repeat(width - leftW - rightW) + right
-    } else {
-      stats = truncateToWidth(`${statsLeft}  ${right}`, width, '...')
-    }
-    return [pwdLine, color.dim(stats)]
+    const gap = width - visibleWidth(left) - visibleWidth(right)
+    const line = gap >= 2 ? `${left}${' '.repeat(gap)}${right}` : truncateToWidth(`${left}  ${right}`, width, '…')
+    return [color.dim(line)]
   }
 }
 
@@ -287,22 +288,45 @@ function formatTime(at: number): string {
   return new Date(at).toLocaleString('sv-SE', { timeZone: 'Asia/Singapore' })
 }
 
+async function welcomeInfo(recipe: Recipe, sessionId: string, existed: boolean): Promise<WelcomeInfo> {
+  const { args } = recipe
+  const model = recipe.getModel()
+  let skills = '0 个技能'
+  if (recipe.skillScan) {
+    try {
+      const { skills: list } = await recipe.skillScan()
+      skills = `${list.length} 个技能`
+    } catch { /* 扫不出来就当没有 */ }
+  }
+  const name = sessionName(args.cwd, sessionId)
+  return {
+    version: VERSION,
+    cwd: formatCwd(recipe.workdir),
+    model: `${displayModel(model.id)} · ${formatTokens(model.info.contextWindow)}`,
+    sandbox: args.sandbox === 'docker'
+      ? `docker · 镜像 ${process.env.HUE_IMAGE ?? 'node:22'}`
+      : 'local · 当前目录',
+    policy: args.sandbox === 'docker' || args.yes
+      ? 'yolo · 不询问'
+      : 'coding · 写入和命令先确认',
+    context: `${skills} · ${recipe.memoryEnabled ? '记忆已开启' : '记忆未开启'}`,
+    session: `${existed ? `继续 ${name ?? shortId(sessionId)}` : `新会话${name ? ` · ${name}` : ''}`} · ${basename(recipe.dbPath)}`,
+  }
+}
+
 export async function runInteractive(opts: RunCliOptions): Promise<number> {
   const { args } = opts
   const recipe = await openRecipe(opts)
   let sessionId = recipe.sessionId
   const transcript = new Transcript()
   const footer = new Footer()
-  footer.cwd = recipe.workdir
-  footer.branch = gitBranch(recipe.workdir)
-  footer.sessionId = sessionId
-  footer.modelId = recipe.getModel().id
+  footer.modelId = displayModel(recipe.getModel().id)
   footer.contextWindow = recipe.getModel().info.contextWindow
-  footer.name = sessionName(args.cwd, sessionId)
   writeLastSession(args.cwd, sessionId)
 
   const pendingShell: string[] = []
   let running = false
+  let runStartedAt = 0
   let exiting = false
   let exitCode = 0
   let overlay: OverlayHandle | undefined
@@ -317,14 +341,37 @@ export async function runInteractive(opts: RunCliOptions): Promise<number> {
   const editor = new Editor(tui, editorTheme)
   editor.setAutocompleteProvider(new HueAutocompleteProvider([...SLASH_COMMANDS], args.cwd))
 
+  const loader = new Loader(tui, color.gold, color.dim)
   const scroll = new ScrollView(transcript, { follow: 'end', primary: true, scrollbar: 'auto' })
   const body = args.tuiMode === 'regular'
     ? transcript
     : { component: scroll, grow: 1, shrink: 1, minSize: 3 }
-  const root = new VStack([body, editor, footer])
+  const root = new VStack([
+    body,
+    { component: loader, visible: () => running },
+    { component: editor, minSize: 3 },
+    { component: footer, minSize: 1 },
+  ])
   if (isViewportTUI(tui)) tui.setLayoutRoot(root)
   else tui.addChild(root)
   tui.setFocus(editor)
+
+  let loaderTimer: ReturnType<typeof setInterval> | undefined
+  const showLoader = (): void => {
+    runStartedAt = Date.now()
+    loader.setMessage('Working…  esc 中断')
+    loader.start()
+    loaderTimer = setInterval(() => {
+      const s = Math.floor((Date.now() - runStartedAt) / 1000)
+      loader.setMessage(`Working…  esc 中断 · ${formatDuration(s * 1000)}`)
+      refresh()
+    }, 500)
+  }
+  const hideLoader = (): void => {
+    if (loaderTimer) clearInterval(loaderTimer)
+    loaderTimer = undefined
+    loader.stop()
+  }
 
   const closeOverlay = (): void => {
     overlay?.hide()
@@ -372,11 +419,8 @@ export async function runInteractive(opts: RunCliOptions): Promise<number> {
   recipe.setInput({ request: ask })
 
   const syncFooter = (): void => {
-    footer.sessionId = sessionId
-    footer.modelId = recipe.getModel().id
+    footer.modelId = displayModel(recipe.getModel().id)
     footer.contextWindow = recipe.getModel().info.contextWindow
-    footer.name = sessionName(args.cwd, sessionId)
-    footer.busy = running
   }
 
   const onEvent = (e: HueEvent): void => {
@@ -387,8 +431,23 @@ export async function runInteractive(opts: RunCliOptions): Promise<number> {
     refresh()
   }
 
+  /** task 结束后从事件库回填子 agent 的工具树（progress 里只有工具名，没有参数）。 */
+  transcript.onTaskDone = (callId, childId) => {
+    void (async () => {
+      const lines: string[] = []
+      for await (const e of recipe.db.read(childId)) {
+        if (e.type === 'tool.call') lines.push(`${e.name}${toolSig(e.name, e.input)}`)
+      }
+      if (lines.length) {
+        transcript.fillTaskTree(callId, lines)
+        refresh()
+      }
+    })()
+  }
+
   const replay = async (id: string): Promise<void> => {
     transcript.clear()
+    transcript.addBlock(new WelcomeCard(await welcomeInfo(recipe, id, true)))
     footer.usage = emptyUsage()
     footer.contextTokens = undefined
     for await (const e of recipe.db.read(id)) {
@@ -403,6 +462,7 @@ export async function runInteractive(opts: RunCliOptions): Promise<number> {
     if (exiting) return
     exiting = true
     exitCode = code
+    hideLoader()
     if (running) recipe.agent.interrupt(sessionId)
     closeOverlay()
     try { tui.stop() } catch { /* 已经停过 */ }
@@ -416,7 +476,7 @@ export async function runInteractive(opts: RunCliOptions): Promise<number> {
       return
     }
     running = true
-    footer.busy = true
+    showLoader()
     refresh()
     try {
       await drain(recipe.agent, task, sessionId, onEvent, opts.signal)
@@ -424,7 +484,7 @@ export async function runInteractive(opts: RunCliOptions): Promise<number> {
       note(err instanceof Error ? err.message : String(err), true)
     } finally {
       running = false
-      footer.busy = false
+      hideLoader()
       writeLastSession(args.cwd, sessionId)
       refresh()
     }
@@ -536,10 +596,11 @@ export async function runInteractive(opts: RunCliOptions): Promise<number> {
         sessionId = crypto.randomUUID()
         writeLastSession(args.cwd, sessionId)
         transcript.clear()
+        transcript.addBlock(new WelcomeCard(await welcomeInfo(recipe, sessionId, false)))
         footer.usage = emptyUsage()
         footer.contextTokens = undefined
         syncFooter()
-        note(`新会话 ${sessionId}`)
+        refresh()
         return
       }
       case 'resume':
@@ -549,7 +610,7 @@ export async function runInteractive(opts: RunCliOptions): Promise<number> {
         const last = await recipe.db.lastSeq(sessionId)
         const lines = [
           `session  ${sessionId}`,
-          `name     ${footer.name ?? '(unset)'}`,
+          `name     ${sessionName(args.cwd, sessionId) ?? '(unset)'}`,
           `db       ${recipe.dbPath}`,
           `cwd      ${recipe.workdir}`,
           `sandbox  ${args.sandbox}${recipe.copy ? `  copy ${recipe.copy}` : ''}`,
@@ -575,9 +636,8 @@ export async function runInteractive(opts: RunCliOptions): Promise<number> {
         return
       }
       case 'name': {
-        if (!rest) { note(`当前会话名：${footer.name ?? '(unset)'}`); return }
+        if (!rest) { note(`当前会话名：${sessionName(args.cwd, sessionId) ?? '(unset)'}`); return }
         writeSessionName(args.cwd, sessionId, rest)
-        syncFooter()
         note(`会话名设为 ${rest.trim()}`)
         return
       }
@@ -633,7 +693,6 @@ export async function runInteractive(opts: RunCliOptions): Promise<number> {
     }
     if (matchesKey(data, Key.ctrl('o'))) {
       transcript.toolsExpanded = !transcript.toolsExpanded
-      transcript.refreshTools()
       refresh()
       return { consume: true }
     }
@@ -659,15 +718,9 @@ export async function runInteractive(opts: RunCliOptions): Promise<number> {
   const existed = await recipe.db.lastSeq(sessionId) > 0
   tui.start()
   try {
+    transcript.addBlock(new WelcomeCard(await welcomeInfo(recipe, sessionId, existed)))
     if (existed) await replay(sessionId)
-    const bits = [
-      `Hue  ·  ${formatCwd(recipe.workdir)}  ·  ${recipe.getModel().id}  ·  session ${shortId(sessionId)}`,
-      args.sandbox === 'docker'
-        ? `docker 副本 ${recipe.copy}（镜像 ${process.env.HUE_IMAGE ?? 'node:22'}）`
-        : `local sandbox${args.yes ? '（--yes / yolo）' : '（coding 策略，危险命令会询问）'}`,
-    ]
-    if (args.continueLast && !args.session && !existed) bits.push('没有找到可继续的会话，已新建。')
-    note(bits.join('\n'))
+    if (args.continueLast && !args.session && !existed) note('没有找到可继续的会话，已新建。')
     if (args.prompt) {
       editor.addToHistory(args.prompt)
       await startRun(nextPrompt(args.prompt))
@@ -675,9 +728,9 @@ export async function runInteractive(opts: RunCliOptions): Promise<number> {
     await done
     return exitCode
   } catch (err) {
+    hideLoader()
     try { tui.stop() } catch { /* ignore */ }
     await recipe.dispose()
     throw err
   }
 }
-

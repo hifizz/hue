@@ -50,11 +50,11 @@ export const markdownTheme: MarkdownTheme = {
 }
 
 export function formatTokens(count: number): string {
+  const m = (n: number) => `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
   if (count < 1000) return String(count)
   if (count < 10_000) return `${(count / 1000).toFixed(1)}k`
   if (count < 1_000_000) return `${Math.round(count / 1000)}k`
-  if (count < 10_000_000) return `${(count / 1_000_000).toFixed(1)}M`
-  return `${Math.round(count / 1_000_000)}M`
+  return m(count)
 }
 
 export function formatCwd(cwd: string, home = process.env.HOME ?? homedir()): string {
@@ -70,25 +70,4 @@ export function formatDuration(ms: number): string {
   const rem = total % 60
   if (minutes < 60) return `${minutes}m ${rem}s`
   return `${Math.floor(minutes / 60)}h ${minutes % 60}m ${rem}s`
-}
-
-/** 工具调用标题：收起时是同一行的 key=value，展开时每行一个参数。 */
-export function formatToolLine(name: string, args: unknown, expanded: boolean): string {
-  const title = color.bold(color.orange(name))
-  if (args == null || (typeof args === 'object' && !Array.isArray(args) && Object.keys(args as object).length === 0)) {
-    return title
-  }
-  const entries = typeof args === 'object' && args !== null && !Array.isArray(args)
-    ? Object.entries(args as Record<string, unknown>)
-    : [['args', args]] as Array<[string, unknown]>
-  if (expanded) {
-    const lines = entries.map(([k, v]) => {
-      const text = typeof v === 'string' ? v : (JSON.stringify(v, null, 2) ?? String(v))
-      return `  ${k}: ${text.replace(/\t/g, '   ').replace(/\r/g, '').split('\n').join('\n    ')}`
-    })
-    return `${title}\n${color.muted(lines.join('\n'))}`
-  }
-  const pairs = entries.map(([k, v]) => `${k}=${JSON.stringify(v) ?? String(v)}`).join(' ')
-  const preview = pairs.length > 80 ? `${pairs.slice(0, 77)}...` : pairs
-  return `${title} ${color.muted(preview)}`
 }
