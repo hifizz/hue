@@ -349,8 +349,8 @@ export async function runInteractive(opts: RunCliOptions): Promise<number> {
   const root = new VStack([
     body,
     { component: loader, visible: () => running },
-    editor,
-    footer,
+    { component: editor, minSize: 3 },
+    { component: footer, minSize: 1 },
   ])
   if (isViewportTUI(tui)) tui.setLayoutRoot(root)
   else tui.addChild(root)

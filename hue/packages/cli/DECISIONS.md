@@ -49,3 +49,15 @@
 - **为什么**：mock 里 `task(...)` 是并行调研入口；只读工具集才配得上 `effects: 'none'`（同一步可并发派发），写工具和 bash 不进子 agent。
 - **代价**：子 agent 不能跑 `npm test` 之类，调研里需要命令时得回到父 agent 自己跑。
 - **何时要改**：如果需要"能改代码的子 agent"，加一个带写工具的变体（effects 换 'unsafe'，policy 会逐个问）。
+
+## 9. `@` 补全的 fd 依赖与 Node 兜底
+
+- **问题**：pi-tui 的 `@` 模糊补全只走 `fd`（`CombinedAutocompleteProvider` 第三个构造参数 `fdPath`，为 null 时 `getFuzzyFileSuggestions` 直接返回 `[]`），构造时从没传过，`@` 等于死代码。
+- **选了**：启动时扫 PATH 找 `fd` / `fdfind` 传给基类；找不到时 `getSuggestions` 先让 super 跑（斜杠命令和普通路径补全不依赖 fd），只有 `@` token 那条分支用 Node 递归扫 cwd 兜底（跳 `.git`/`node_modules`，深度 ≤6、扫描 ≤2 万条，打分/排序对齐 pi-tui）。
+- **代价**：兜底不尊重 .gitignore，结果集和 fd 略有差异；token 切分只按空白，不处理 CJK 标点边界。
+- **何时要改**：pi-tui 若内置非 fd 后端或导出 scoped query 逻辑，删掉兜底。
+
+## 10. VStack 溢出时 editor/footer 被裁到 0 行
+
+- **问题**：对话超高时 VStack 按比例收缩，没设 `minSize` 的 footer 被压到 0 行消失，editor 下边框也被裁。
+- **选了**：editor `minSize: 3`（上下边框 + 一行输入）、footer `minSize: 1`，收缩全部由 ScrollView 吸收。
