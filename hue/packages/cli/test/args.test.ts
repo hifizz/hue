@@ -52,3 +52,10 @@ test('交互模式也可以带提示词；未知 tui-mode 会抛错', () => {
   assert.equal(a.tuiMode, 'fullscreen')
   assert.throws(() => parseArgs(['--tui-mode', 'vim']), /只能是 fullscreen 或 regular/)
 })
+
+test('-m 是 --model 的简写，--no-color 关颜色', () => {
+  const a = parseArgs(['-m', 'glm-5.3-flash', '--no-color'])
+  assert.equal(a.model, 'glm-5.3-flash')
+  assert.equal(a.noColor, true)
+  assert.equal(parseArgs([]).noColor, false)
+})

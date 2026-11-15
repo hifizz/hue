@@ -45,3 +45,5 @@ export function writeSessionName(cwd: string, sessionId: string, name: string): 
   else delete names[sessionId]
   writeFileSync(namesFile(cwd), `${JSON.stringify(names, null, 2)}\n`)
 }
+
+export const shortId = (id: string) => id.slice(0, 8)

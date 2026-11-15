@@ -6,6 +6,7 @@ export interface CliArgs {
   print: boolean
   json: boolean
   yes: boolean
+  noColor: boolean
   continueLast: boolean
   sandbox: SandboxMode
   tuiMode: TuiMode
@@ -28,9 +29,10 @@ export const usage = `用法:
   --cwd               工作目录，默认当前目录；docker 模式须是 git 仓库
   --sandbox           docker（默认，在仓库副本里跑）或 local（在目录本身上跑）
   --tui-mode          fullscreen（默认，和 Pi 一样用备用屏）或 regular（用终端滚动缓冲）
-  --model             覆盖 HUE_MODEL；经 anthropic 兼容中转站调用
+  -m, --model         覆盖 HUE_MODEL；经 anthropic 兼容中转站调用
   --session           会话 id，不给就新建（或与 -c 一起用上次的）
   --db                事件库路径，默认当前目录下的 hue.db
+  --no-color          不输出颜色（也认 NO_COLOR 环境变量）
   --yes               local 也用 yolo 策略（不再询问）。只在你清楚后果时使用。
   -h, --help          显示帮助
 `
@@ -44,7 +46,7 @@ function need(argv: string[], i: number, flag: string): string {
 /** 解析 `hue` 后面的参数。`argv` 不含 node 和脚本路径。 */
 export function parseArgs(argv: string[], cwd = process.cwd()): CliArgs {
   const out: CliArgs = {
-    help: false, print: false, json: false, yes: false, continueLast: false,
+    help: false, print: false, json: false, yes: false, noColor: false, continueLast: false,
     sandbox: 'docker', tuiMode: 'fullscreen', cwd,
   }
   const rest: string[] = []
@@ -55,11 +57,12 @@ export function parseArgs(argv: string[], cwd = process.cwd()): CliArgs {
       case '-p': case '--print': out.print = true; break
       case '--json': out.json = true; out.print = true; break
       case '--yes': out.yes = true; break
+      case '--no-color': out.noColor = true; break
       case '-c': case '--continue': out.continueLast = true; break
       case '--sandbox': out.sandbox = need(argv, ++i, '--sandbox') as SandboxMode; break
       case '--tui-mode': out.tuiMode = need(argv, ++i, '--tui-mode') as TuiMode; break
       case '--cwd': out.cwd = need(argv, ++i, '--cwd'); break
-      case '--model': out.model = need(argv, ++i, '--model'); break
+      case '-m': case '--model': out.model = need(argv, ++i, '--model'); break
       case '--session': out.session = need(argv, ++i, '--session'); break
       case '--db': out.db = need(argv, ++i, '--db'); break
       case '--': rest.push(...argv.slice(i + 1)); i = argv.length; break

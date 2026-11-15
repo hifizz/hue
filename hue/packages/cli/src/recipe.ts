@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { appendFileSync, mkdtempSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { tmpdir, homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 import type { Capability, ContextStrategy, HueEvent, InputPort, ModelPort, PolicyPort, SandboxPort, Tool } from '@hue/core'
 import { model } from '@hue/ai'
@@ -28,7 +28,8 @@ export function modelFromEnv(opts: { model?: string, trace?: (e: object) => void
   return model(`anthropic:${name}`, {
     apiKey: process.env.AI_GATEWAY_API_KEY || process.env.ANTHROPIC_API_KEY,
     baseURL: process.env.AI_GATEWAY_BASE_URL || process.env.ANTHROPIC_BASE_URL,
-    thinking: { type: 'adaptive', display: 'summarized' },
+    // HUE_THINKING=off：不发 thinking 参数。排查"长推理让流超时"、或模型不支持 thinking 时用。
+    ...(process.env.HUE_THINKING === 'off' ? {} : { thinking: { type: 'adaptive' as const, display: 'summarized' as const } }),
     trace: opts.trace,
   })
 }
@@ -60,9 +61,9 @@ function capabilities(): Capability[] {
   return out
 }
 
-async function makeSandbox(mode: SandboxMode, dir: string): Promise<{ sandbox: SandboxPort, workdir: string, copy?: string }> {
+async function makeSandbox(mode: SandboxMode, dir: string): Promise<{ sandbox: SandboxPort, workdir: string, copy?: string, pnpmCache: boolean }> {
   const workdir = resolve(dir)
-  if (mode === 'local') return { sandbox: await local({ root: workdir }), workdir }
+  if (mode === 'local') return { sandbox: await local({ root: workdir }), workdir, pnpmCache: false }
   let copy = process.env.HUE_COPY
   if (!copy) {
     try { execFileSync('git', ['-C', workdir, 'rev-parse', '--is-inside-work-tree'], { stdio: 'pipe' }) }
@@ -72,8 +73,22 @@ async function makeSandbox(mode: SandboxMode, dir: string): Promise<{ sandbox: S
     copy = mkdtempSync(join(tmpdir(), 'hue-work-'))
     execFileSync('git', ['clone', '-q', '--no-hardlinks', workdir, copy])
   }
-  const sandbox = await docker({ mount: copy, image: process.env.HUE_IMAGE, network: process.env.HUE_NETWORK })
-  return { sandbox, workdir, copy }
+  // HUE_PNPM_CACHE：开 pnpm store 的跨容器缓存（默认 ~/.cache/hue/pnpm-store，给值就换目录）。docker 的副本是新的，
+  // 没有它每次任务都要从零下依赖（M1 实测 4 分 5 秒、42 KiB/s，占那次工具时间的 85%，见 docs/research/sandbox-evidence.md §2）。
+  const cache = process.env.HUE_PNPM_CACHE
+  const pnpm = cache ? (cache === '1' ? join(homedir(), '.cache', 'hue', 'pnpm-store') : cache) : undefined
+  const sandbox = await docker({
+    mount: copy, image: process.env.HUE_IMAGE, network: process.env.HUE_NETWORK,
+    ...(pnpm ? { mounts: [{ host: pnpm, container: '/pnpm-store' }] } : {}),
+  })
+  return { sandbox, workdir, copy, pnpmCache: Boolean(pnpm) }
+}
+
+// 开了 HUE_PNPM_CACHE 时追加给模型的一句话：告诉它 store 在哪，省得它自己装到默认位置（容器里每次新建，默认 store 留不下来）。
+export function instructionsFor(pnpmCache: boolean): string {
+  return INSTRUCTIONS + (pnpmCache
+    ? '\nThe pnpm store is mounted at /pnpm-store (shared, persists across runs). Run installs as `corepack pnpm install --store-dir /pnpm-store` (or set PNPM_STORE_DIR=/pnpm-store).'
+    : '')
 }
 
 export function policyFor(mode: SandboxMode, yes: boolean): PolicyPort {
@@ -126,7 +141,7 @@ export async function openRecipe(opts: RunCliOptions): Promise<Recipe> {
     ? makeTelemetry({ url: process.env.HUE_OTLP, serviceName: 'hue', captureContent: process.env.HUE_OTLP_CONTENT === '1', onError: e => console.error(`[telemetry] ${e.message}`) })
     : undefined
 
-  const { sandbox, workdir, copy } = await makeSandbox(args.sandbox, args.cwd)
+  const { sandbox, workdir, copy, pnpmCache } = await makeSandbox(args.sandbox, args.cwd)
   const db = sqliteStore(dbPath)
   const store = tel ? observeStore(db, tel) : db
   const sessionId = await resolveSessionId(args, db)
@@ -136,11 +151,13 @@ export async function openRecipe(opts: RunCliOptions): Promise<Recipe> {
   let currentInput = opts.input ?? decline
   const policy = opts.policy ?? policyFor(args.sandbox, args.yes)
   const tools = codingTools()
-  const context: ContextStrategy = chain(foldToolResults(), summarize({ model: relay(() => currentModel) }))
+  // HUE_CONTEXT_BUDGET=token 数：覆盖"窗口 80%"的压缩触发线。1M 窗口下长任务也很难触发压缩，校准阈值时调小它。
+  const budget = Number(process.env.HUE_CONTEXT_BUDGET) > 0 ? Number(process.env.HUE_CONTEXT_BUDGET) : undefined
+  const context: ContextStrategy = chain(foldToolResults({ budget }), summarize({ model: relay(() => currentModel), budget }))
   const agent = createAgent({
     model: relay(() => currentModel),
     store,
-    instructions: INSTRUCTIONS,
+    instructions: instructionsFor(pnpmCache),
     tools,
     sandbox,
     policy,

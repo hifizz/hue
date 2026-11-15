@@ -18,6 +18,7 @@ export async function main(argv: string[]): Promise<number> {
     return 2
   }
   if (args.help) { console.log(usage); return 0 }
+  if (args.noColor) process.env.NO_COLOR = '1'
 
   if (args.print && !args.prompt) {
     console.error('请提供任务提示词。')
@@ -47,7 +48,7 @@ export async function main(argv: string[]): Promise<number> {
       console.error('交互模式需要 TTY。无界面请用 hue -p "<任务>"。')
       return 2
     }
-    const { runInteractive } = await import('./tui/interactive.js')
+    const { runInteractive } = await import('./interactive.js')
     return await runInteractive({ args, signal: ac.signal })
   } finally {
     process.off('SIGINT', onSig)

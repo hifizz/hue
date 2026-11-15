@@ -1,17 +1,21 @@
-/** 第一批斜杠命令：名称和用法对齐 Pi，只列入 Hue 已经有后端的那些。 */
+/** 斜杠命令：名称对齐 Pi，只列入 Hue 已经有后端的那些。顺序即补全菜单顺序：先会话流转，再查看，最后退出。 */
 import type { SlashCommand } from '@earendil-works/pi-tui'
 
 export const SLASH_COMMANDS: readonly SlashCommand[] = [
-  { name: 'model', description: 'Show current model, or switch with /model <name>', argumentHint: '<name>' },
-  { name: 'export', description: 'Export session (Markdown default, or specify path: .md/.jsonl)' },
-  { name: 'copy', description: 'Copy last agent message to clipboard' },
-  { name: 'name', description: 'Set session display name' },
-  { name: 'session', description: 'Show session info and stats' },
-  { name: 'hotkeys', description: 'Show all keyboard shortcuts' },
-  { name: 'new', description: 'Start a new session' },
-  { name: 'resume', description: 'Resume another session' },
-  { name: 'quit', description: 'Quit Hue' },
+  { name: 'help', description: '列出所有斜杠命令' },
+  { name: 'new', description: '开始新会话' },
+  { name: 'resume', description: '恢复另一个会话' },
+  { name: 'model', description: '查看当前模型，或用 /model <模型名> 切换', argumentHint: '<模型名>' },
+  { name: 'session', description: '查看会话信息和用量' },
+  { name: 'name', description: '给会话起个名字' },
+  { name: 'copy', description: '复制上一条回复到剪贴板' },
+  { name: 'export', description: '导出会话（默认 Markdown，可指定 .md / .jsonl 路径）' },
+  { name: 'hotkeys', description: '显示所有快捷键' },
+  { name: 'quit', description: '退出 Hue' },
 ]
+
+/** 别的 CLI 里养成的习惯：/exit、/clear 也能用，但不占补全菜单。 */
+const SLASH_ALIASES: Readonly<Record<string, string>> = { exit: 'quit', clear: 'new' }
 
 export const SLASH_NAMES = new Set(SLASH_COMMANDS.map(c => c.name))
 
@@ -31,8 +35,19 @@ export function parseSlash(text: string): { name: string, args: string } | undef
   if (!text.startsWith('/')) return undefined
   const body = text.slice(1)
   const i = body.search(/\s/)
-  if (i < 0) return { name: body, args: '' }
-  return { name: body.slice(0, i), args: body.slice(i).trim() }
+  const name = i < 0 ? body : body.slice(0, i)
+  return { name: SLASH_ALIASES[name] ?? name, args: i < 0 ? '' : body.slice(i).trim() }
+}
+
+export function helpText(): string {
+  const rows = SLASH_COMMANDS.map(c => `/${c.name.padEnd(8)}${c.description}`)
+  return `${rows.join('\n')}\n\n快捷键见 /hotkeys；!command 在沙箱里跑 shell。`
+}
+
+/** 敲错时给个提示：命令名互相包含就当候选，没有就指回 /help。 */
+export function unknownSlashMessage(name: string): string {
+  const near = [...SLASH_NAMES].filter(n => n.includes(name) || name.includes(n))
+  return `未知命令: /${name}。${near.length ? `是想输入 ${near.map(n => `/${n}`).join('、')} 吗？` : '输入 /help 查看可用命令。'}`
 }
 
 export function parseShellBang(text: string): { command: string, sendToModel: boolean } | undefined {

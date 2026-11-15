@@ -39,7 +39,7 @@ node --import tsx --test learn/*/*.test.ts   # learn/ 的测试（npm test 不�
 ## 改动规则
 - **`@hue/core` 已冻结（v0.2）**。改 core 接口的顺序：先改 `docs/packages/core.md`，再改代码和合同测试，破坏性变更升 `specVersion`。core 现有的 loop 测试和合同测试必须一直通过。
 - 做某个包时只改 `hue/packages/<该包>/`。发现 core 不够用，在该包目录写 `CHANGE-REQUEST.md`，不要绕过。
-- 每包有行数预算（`hue/scripts/budget.mjs`），超了就删代码，不要调预算。
+- 每包有行数预算（`hue/scripts/budget.mjs`，数的是 `src/` 总行数），超了就删代码，不要调预算。唯一例外是 `cli`（UI / 交互层，预算 2000，见 `packages/cli/DECISIONS.md` 第 9 条）。
 - 第三方依赖每加一个都在包 README 写一行理由，能用 Node 内置就不用库。
 
 ## 包的结构

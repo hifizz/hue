@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { HueAutocompleteProvider } from '../src/tui/autocomplete.js'
-import { applySlashNameCompletion, resolveSlashCompletion, SLASH_COMMANDS, SLASH_NAMES, parseShellBang, parseSlash } from '../src/tui/commands.js'
+import { applySlashNameCompletion, helpText, resolveSlashCompletion, SLASH_COMMANDS, SLASH_NAMES, parseShellBang, parseSlash, unknownSlashMessage } from '../src/tui/commands.js'
 
 test('第一批斜杠命令都在表里', () => {
-  for (const name of ['quit', 'new', 'resume', 'session', 'model', 'copy', 'name', 'export', 'hotkeys']) {
+  for (const name of ['help', 'quit', 'new', 'resume', 'session', 'model', 'copy', 'name', 'export', 'hotkeys']) {
     assert.equal(SLASH_NAMES.has(name), true, name)
   }
   assert.equal(SLASH_NAMES.has('compact'), false)
@@ -44,4 +44,17 @@ test('HueAutocompleteProvider 用过期前缀 / 接受 session 时不会生成 /
   const result = provider.applyCompletion(['/session'], 0, 8, { value: 'model', label: 'model' }, '/')
   assert.equal(result.lines[0], '/session ')
   assert.equal(result.cursorCol, 9)
+})
+
+test('/exit 和 /clear 是别名，不进补全菜单', () => {
+  assert.equal(parseSlash('/exit')?.name, 'quit')
+  assert.deepEqual(parseSlash('/clear'), { name: 'new', args: '' })
+  assert.equal(SLASH_NAMES.has('exit'), false)
+})
+
+test('/help 列出每条命令；敲错时给候选', () => {
+  const text = helpText()
+  for (const c of SLASH_COMMANDS) assert.match(text, new RegExp(`/${c.name}\\s`))
+  assert.match(unknownSlashMessage('sessions'), /\/session/)
+  assert.match(unknownSlashMessage('zzz'), /\/help/)
 })
