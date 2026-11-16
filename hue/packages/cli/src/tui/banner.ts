@@ -1,5 +1,6 @@
 /** 启动横幅：橙色圆角框，左边环境信息，右边提示。窄终端只留左边。 */
 import { truncateToWidth, visibleWidth, type Component } from '@earendil-works/pi-tui'
+import { ring } from './logo.js'
 import { color } from './theme.js'
 
 export interface BannerInfo {
@@ -15,8 +16,8 @@ const WIDE = 96
 const pad = (s: string, w: number) => s + ' '.repeat(Math.max(0, w - visibleWidth(s)))
 const cell = (s: string, w: number) => ` ${pad(truncateToWidth(s, w - 2, '...'), w - 2)} `
 const key = (k: string, d: string) => `${color.text(k)} ${color.muted(d)}`
-// 四段圆弧拼成一个小色环（五色里放不下青，留给文字）。
-const LOGO = [`${color.orange('◜')}${color.gold('◝')}`, `${color.sky('◟')}${color.green('◞')}`]
+const LOGO_COLS = 6
+const LOGO_ROWS = 3
 
 export class Banner implements Component {
   constructor(private info: BannerInfo) {}
@@ -24,9 +25,10 @@ export class Banner implements Component {
 
   render(width: number): string[] {
     const { info } = this
+    const mark = ring(LOGO_COLS, LOGO_ROWS)
+    const beside = [`${color.bold(color.text('Hue CLI'))} ${color.dim(`v${info.version}`)}`, color.muted(info.cwd), '']
     const left = [
-      `${LOGO[0]}  ${color.bold(color.text('Hue CLI'))} ${color.dim(`v${info.version}`)}`,
-      `${LOGO[1]}  ${color.muted(info.cwd)}`,
+      ...mark.map((l, i) => `${l}  ${beside[i]}`),
       '',
       ...info.rows.map(([k, v, more]) => `${color.muted(pad(k, 8))}${color.text(v)}${more ? color.muted(` · ${more}`) : ''}`),
     ]

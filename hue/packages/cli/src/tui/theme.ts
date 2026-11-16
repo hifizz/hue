@@ -17,6 +17,9 @@ const fg = (c: Color) => wrap(foregroundAnsi(c, mode), '\x1b[39m')
 const bg = (c: Color) => wrap(backgroundAnsi(c, mode), '\x1b[49m')
 const ok = (h: number, s: number, l: number) => okhslColor(h, s / 100, l / 100)
 
+/** 任意 RGB 前景色，给 logo 的渐变用。 */
+export const rgbFg = (r: number, g: number, b: number) => fg(rgbColor(Math.round(r), Math.round(g), Math.round(b)))
+
 export const color = {
   text: fg(ok(234, 3, 89)),
   muted: fg(ok(229, 6, 67)),

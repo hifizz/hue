@@ -47,3 +47,23 @@ test('ToolView：标题、diff、结果各占自己的行', () => {
   assert.match(lines[0]!, /^ ● bash\(ls\)/)
   assert.match(lines[1]!, /^ {3}⎿ done/)
 })
+
+test('色环 logo：6×3 方块字符，有孔，NO_COLOR 下没有转义序列，彩色时恰好五种色块', async () => {
+  const { ring } = await import('../src/tui/logo.js')
+  const strip = (s: string) => s.replace(/\x1b\[[0-9;]*m/g, '')
+  const lines = ring(6, 3)
+  assert.equal(lines.length, 3)
+  for (const l of lines) assert.equal(visibleWidth(l), 6)
+  assert.equal(strip(lines[1]!).slice(2, 4), '  ', '中间是孔')
+  const colors = new Set(lines.join('').match(/\x1b\[38;[0-9;]+m/g))
+  assert.equal(colors.size, 5)
+  assert.match(strip(lines.join('')), /^[▘▝▖▗▀▄▌▐▞▚▛▜▙▟█ ]+$/)
+  const prev = process.env.NO_COLOR
+  try {
+    process.env.NO_COLOR = '1'
+    assert.equal(ring(6, 3).join('').includes('\x1b'), false)
+  } finally {
+    if (prev === undefined) delete process.env.NO_COLOR
+    else process.env.NO_COLOR = prev
+  }
+})

@@ -28,7 +28,7 @@ cd hue
 
 ## 交互界面
 
-开头是一个橙色圆角横幅（模型、沙箱、策略、上下文、会话，宽终端右边还有提示），然后是对话记录、多行编辑器和一行状态栏（用量、上下文占比、会话名和模型）。工具调用画成 `● name(参数)` 加 `⎿` 结果行，`edit` 会在下面画红 / 绿底的改动。配色取自 Pi 的 dark 主题，见 DECISIONS 7。快捷键见 TUI 里的 `/hotkeys`。
+开头是一个橙色圆角横幅（左上角是方块字符拼的像素风色环，所有终端一样，见 DECISIONS 10）（模型、沙箱、策略、上下文、会话，宽终端右边还有提示），然后是对话记录、多行编辑器和一行状态栏（用量、上下文占比、会话名和模型）。工具调用画成 `● name(参数)` 加 `⎿` 结果行，`edit` 会在下面画红 / 绿底的改动。配色取自 Pi 的 dark 主题，见 DECISIONS 7。快捷键见 TUI 里的 `/hotkeys`。
 
 斜杠命令：`/help`、`/new`、`/resume`、`/model`、`/session`、`/name`、`/copy`、`/export`、`/hotkeys`、`/quit`，输入 `/` 即可搜索；`/exit`、`/clear` 是 `/quit`、`/new` 的别名。敲错命令名会给候选。`!command` / `!!command` 走现有的 bash 工具和 policy/sandbox，不另开本地 shell。
 
