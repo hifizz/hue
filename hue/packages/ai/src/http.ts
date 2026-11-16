@@ -76,13 +76,17 @@ export interface RetryOptions {
   random?: () => number
 }
 
+/** 指数退避 + 抖动；fetchWithRetry 和流中断重发共用。 */
+export const backoffMs = (attempt: number, random: () => number = Math.random, baseDelayMs = 500, maxDelayMs = 30_000): number =>
+  Math.round(Math.min(maxDelayMs, baseDelayMs * 2 ** attempt) * (0.5 + random() / 2))
+
 export async function fetchWithRetry(doFetch: typeof fetch, url: string, init: RequestInit, o: RetryOptions): Promise<Response> {
   const { maxRetries, baseDelayMs = 500, maxDelayMs = 30_000 } = o
   const wait = o.sleep ?? sleep
   const random = o.random ?? Math.random
   const signal = init.signal ?? undefined
   // 指数退避 + 抖动：成倍增长；乘 0.5~1 的随机系数，避免大量客户端在同一时刻一起重试。
-  const backoff = (attempt: number) => Math.round(Math.min(maxDelayMs, baseDelayMs * 2 ** attempt) * (0.5 + random() / 2))
+  const backoff = (attempt: number) => backoffMs(attempt, random, baseDelayMs, maxDelayMs)
 
   for (let attempt = 0; ; attempt++) {
     let res: Response

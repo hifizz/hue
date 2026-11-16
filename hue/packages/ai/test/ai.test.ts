@@ -6,7 +6,7 @@ import { checkChunkStream } from '@hue/core/contracts'
 import { anthropicModel, model } from '../src/index.js'
 import { classifyHttpError, parseRetryAfter, sleep } from '../src/http.js'
 import { toAnthropicBody } from '../src/request.js'
-import { errorResponse, fakeFetch, reply, redactedBlock, sseResponse, textBlock, thinkingBlock, toolBlock, type Step } from './fixtures.js'
+import { errorResponse, fakeFetch, reply, redactedBlock, sseResponse, textBlock, toSSEText, thinkingBlock, toolBlock, type Step } from './fixtures.js'
 
 const collect = async <T>(it: AsyncIterable<T>): Promise<T[]> => { const out: T[] = []; for await (const x of it) out.push(x); return out }
 const req = (messages: Message[] = [userText('hi')], extra: Partial<ModelRequest> = {}): ModelRequest => ({ instructions: '', messages, tools: [], ...extra })
@@ -211,11 +211,77 @@ test('流：中途 error 事件 → error 块（带 source），不重试：delt
   assert.deepEqual(errOf(cs), { code: 'model_error', message: 'overloaded_error: Overloaded', retryable: true, source: 'ai:anthropic' })
 })
 
-test('流：读流中途连接被重置 → 可重试的 error 块，而不是异常', async () => {
-  const body = new ReadableStream<Uint8Array>({ start(c) { c.enqueue(new TextEncoder().encode('event: ping\ndata: {"type":"ping"}\n\n')); c.error(new TypeError('terminated')) } })
-  const { m } = modelWith([new Response(body, { status: 200 })])
+/** 先发 ping（不产出 chunk），再让读流失败：模拟中转站在首个内容事件前掐断连接。 */
+const resetAfterPing = () => new Response(new ReadableStream<Uint8Array>({ start(c) { c.enqueue(new TextEncoder().encode('event: ping\ndata: {"type":"ping"}\n\n')); c.error(new TypeError('terminated')) } }), { status: 200 })
+
+test('流：读流中途连接被重置 → 重发用完后给可重试的 error 块，而不是异常（共 3 次请求，退避 500、1000ms）', async () => {
+  const { m, calls, sleeps } = modelWith([resetAfterPing(), resetAfterPing(), resetAfterPing()])
   const cs = await collect(m.stream(req(), signal()))
   assert.match(errOf(cs).message, /stream read failed: terminated/); assert.equal(errOf(cs).retryable, true)
+  assert.equal(calls.length, 3); assert.deepEqual(sleeps, [500, 1000]); assert.equal(cs.length, 1, '消费者只看到最后的 error，看不到中间失败的尝试')
+})
+
+test('流：产出任何内容之前断开 → 静默重发，成功后消费者只看到完整回复', async () => {
+  const trace: Array<{ type: string }> = []
+  const { m, calls, sleeps } = modelWith([resetAfterPing(), ok()], { trace: e => trace.push(e) })
+  const cs = await collect(m.stream(req(), signal())); checkChunkStream(cs)
+  assert.equal(calls.length, 2); assert.deepEqual(sleeps, [500])
+  assert.ok(!cs.some(c => c.type === 'error')); assert.equal(cs.at(-1)!.type, 'finish')
+  assert.deepEqual(cs.filter(c => c.type === 'text-delta').map(c => (c as { text: string }).text).join(''), 'ok', '文本只出现一次')
+  assert.deepEqual(trace.map(e => e.type), ['request', 'response', 'stream-error', 'retry', 'response'])
+})
+
+test('流：没看到 message_stop 就结束、且还没产出内容 → 同样重发', async () => {
+  const noContent = () => sseResponse(reply([], 'end_turn', 1).slice(0, 2)) // 只有 message_start 和 ping
+  const { m, calls } = modelWith([noContent(), ok()])
+  const cs = await collect(m.stream(req(), signal())); checkChunkStream(cs)
+  assert.equal(calls.length, 2); assert.equal(cs.at(-1)!.type, 'finish')
+})
+
+test('流：只交出了协议骨架（redacted_thinking 的 reasoning-end）就被掐 → 重发。M1 运行 E 的形态：313ms、2 块、没有任何用户可见内容', async () => {
+  // redactedBlock 只有 content_block_start（redacted_thinking 没有 delta，内容一次给全）和 stop；
+  // 交出去的只有 reasoning-end 这一个协议块，没有任何 text / reasoning / tool-input 的 delta。
+  const skeletonOnly = reply([redactedBlock(0, 'encrypted')], 'end_turn', 1).slice(0, 4) // message_start, ping, block_start, block_stop
+  const cut = () => sseResponse(skeletonOnly)
+  const { m, calls } = modelWith([cut(), ok()])
+  const cs = await collect(m.stream(req(), signal()))
+  assert.equal(calls.length, 2, '协议骨架被掐应该重发')
+  assert.equal(cs.at(-1)!.type, 'finish', '重发后拿到完整回复')
+  assert.ok(!cs.some(c => c.type === 'error'), '没有 error 块')
+  // 交出去的只有 reasoning-end 这个非用户可见块（第一次流里的），重发后完整回复的 text-delta 只出现一次
+  assert.equal(cs.filter(c => c.type === 'text-delta').length, 1)
+})
+
+test('流：已经产出内容（文本或推理）之后断开 → 不重发，error 块照旧：delta 已经交给消费者，重发会重复', async () => {
+  for (const block of [textBlock(0, 'partial'), thinkingBlock(0, 'thinking…', 'SIG')]) {
+    const cut = reply([block], 'end_turn', 1).slice(0, 5) // 内容块已经开始，没有 message_stop
+    // 备了第二个完好的响应：如果错误地重发了，消费者会看到重复的内容和一个 finish，下面的断言就会失败。
+    const { m, calls, sleeps } = modelWith([sseResponse(cut), ok()])
+    const cs = await collect(m.stream(req(), signal()))
+    assert.equal(calls.length, 1, '没有第二次请求'); assert.deepEqual(sleeps, [])
+    assert.ok(!cs.some(c => c.type === 'finish'), '不能出现重发后的 finish')
+    assert.ok(cs.some(c => c.type === 'text-delta' || c.type === 'reasoning-delta')); assert.match(errOf(cs).message, /before message_stop/)
+  }
+})
+
+test('流：先产出内容、之后读流才抛错（连接被掐）→ 不重发。这是 chunks > 0 那条保护真正走到的路径', async () => {
+  for (const block of [textBlock(0, 'partial'), thinkingBlock(0, 'thinking…', 'SIG')]) {
+    const partial = toSSEText(reply([block], 'end_turn', 1).slice(0, 5)) // 内容块已经开始
+    // 用 pull：先把数据交给消费者，下一次读取才报错。start 里 enqueue 再 error 会把已入队的数据丢掉，消费者什么都收不到（那样重发才是对的）。
+    const dropped = () => { let sent = false; return new Response(new ReadableStream<Uint8Array>({ pull(c) { if (!sent) { sent = true; c.enqueue(new TextEncoder().encode(partial)) } else c.error(new TypeError('terminated')) } }), { status: 200 }) }
+    const { m, calls, sleeps } = modelWith([dropped(), ok()])
+    const cs = await collect(m.stream(req(), signal()))
+    assert.equal(calls.length, 1, '没有第二次请求'); assert.deepEqual(sleeps, [])
+    assert.ok(cs.some(c => c.type === 'text-delta' || c.type === 'reasoning-delta')); assert.ok(!cs.some(c => c.type === 'finish'))
+    assert.match(errOf(cs).message, /stream read failed: terminated/)
+  }
+})
+
+test('流：重发前的退避可以被取消（用户点了停止），并且把 signal 传给了 sleep', async () => {
+  const ac = new AbortController(); let seen: AbortSignal | undefined
+  const { m, calls } = modelWith([resetAfterPing(), ok()], { sleep: async (_ms, s) => { seen = s; ac.abort(); throw new DOMException('Aborted', 'AbortError') } })
+  await assert.rejects(collect(m.stream(req(), ac.signal)), { name: 'AbortError' })
+  assert.equal(seen, ac.signal); assert.equal(calls.length, 1)
 })
 
 // ═════════ HTTP：分类与重试 ═════════

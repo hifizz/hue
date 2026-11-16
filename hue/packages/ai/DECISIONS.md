@@ -35,5 +35,6 @@
 | **默认 `max_tokens = min(16000, info.maxOutputTokens)`** | Anthropic 的 `max_tokens` 必填且包含 thinking 的 token；给得太小，推理会吃光预算。 |
 | **`reasoningTokens` 不填** | Anthropic 的 usage 不单独报推理 token（算在 `output_tokens` 里）。 |
 | **`baseURL` 带不带 `/v1` 都接受** | 中转站常写成 `https://host/v1`，官方 SDK 习惯不带。 |
+| **流在产出任何"用户可见"的 chunk 之前断开 → 静默重发（最多 `maxRetries` 次，退避同 HTTP 层）；产出之后断开 → 不重发** | 2026-11-13 首次真实运行里，中转站在慢请求上把流掐断（70 秒以上），loop 收到 error 块就结束整个 turn。重发只在消费者没看到重复内容时安全。**2026-11-16 修订（运行 E）**：规则从"任何 chunk"放宽到"用户可见的 chunk"（`text-delta` / `reasoning-delta` / `tool-input-delta`）。运行 E 在 313 ms、只交出 2 个协议骨架块（如 `reasoning-end`、`tool-call` 的头部）就被掐，按旧规则整个 turn 丢掉；这些骨架块重发不会让用户看到重复，所以算"没产出"。**局限**：已经开始输出正文后被掐（运行 C，1827 块）仍然不救，那要改 core。 |
 | **读流中途失败 → 可重试的 error 块；取消 → 抛 `AbortError`** | 前者让 loop 看到完整的错误码；后者是合同要求，loop 靠它区分"用户打断"和"出错"。 |
 | **离线 fixture 是按官方文档构造的，不是线上录制** | 任务书写的是"录制的 SSE fixture"。没有录制设施，等有真实流量再替换（见 README 的"没验证的"）。 |

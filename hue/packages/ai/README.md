@@ -36,7 +36,7 @@ src/
 - `tool-call` 只在参数完整后发一次；JSON 解析失败时 `input = { __raw }`，有 tool-call 时 `finishReason` 一律 `tool-calls`。
 - 推理块的 `signature` / `redactedData` 放进 `reasoning-end.providerMetadata.anthropic`，下一轮原样发回；别家的、没签名的推理在发出前丢掉。
 - 超窗（400 + 文案）→ `context_overflow`；限流 / 5xx / 网络失败 → 先退避重试，放弃后 `model_error, retryable: true`；401 等 → `retryable: false`。
-- 重试只发生在响应开始之前。流中途的错误不重试（delta 已经交给消费者，重试会让文本重复）。
+- HTTP 层的重试只发生在响应头到达之前。响应头到了之后流断开：**还没产出任何 chunk**（只收到 ping，或什么都没收到）就静默重发（次数、退避与 `maxRetries` 共用）；**已经产出过 chunk（文本、推理、工具参数）就不重发**，照旧返回可重试的 error 块，因为 delta 已经交给消费者，重发会让文本重复。`trace` 里能看到 `stream-error`（失败前产出几个 chunk、流开了多久）和 `retry`。
 - 取消 → 抛 `AbortError`，并释放底层连接。
 - **`temperature` 被忽略**（API 版本 `2026-10-21` 起已移除）。
 - 未知模型的 `info` 用保守默认值（200k 上下文、8192 输出、不支持 reasoning），详见 [DECISIONS.md](DECISIONS.md)。
