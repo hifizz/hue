@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hue Agent — 几种色相，无数种 Agent</title>
+<meta name="description" content="Hue Agent 是一个开源的 agent harness。在终端里直接用，也能在代码里拼出你自己的 agent。">
+<meta name="theme-color" content="#171717">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:title" content="Hue Agent — 几种色相，无数种 Agent">
+<meta property="og:description" content="开源的 agent harness。在终端里直接用，也能一层层拼进你自己的产品。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 44' fill='none' stroke-width='7'%3E%3Cg transform='rotate(-90 22 22)'%3E%3Ccircle cx='22' cy='22' r='15' pathLength='5' stroke-dasharray='1 4' stroke='%23ff6a1a'/%3E%3Ccircle cx='22' cy='22' r='15' pathLength='5' stroke-dasharray='1 4' stroke-dashoffset='-1' stroke='%23f5b700'/%3E%3Ccircle cx='22' cy='22' r='15' pathLength='5' stroke-dasharray='1 4' stroke-dashoffset='-2' stroke='%235ccf5a'/%3E%3Ccircle cx='22' cy='22' r='15' pathLength='5' stroke-dasharray='1 4' stroke-dashoffset='-3' stroke='%2319c3bd'/%3E%3Ccircle cx='22' cy='22' r='15' pathLength='5' stroke-dasharray='1 4' stroke-dashoffset='-4' stroke='%233a9fff'/%3E%3C/g%3E%3C/svg%3E">
+<noscript><style>.rv{opacity:1;transform:none}</style></noscript>
+<style>
+:root{--bg:#171717;--panel:#1f1f1f;--line:#2e2e2e;--text:#f5f5f5;--mute:#a3a3a3;--dim:#8a8a8a;
+--c1:#ff6a1a;--c2:#f5b700;--c3:#5ccf5a;--c4:#19c3bd;--c5:#3a9fff;
+--grad:linear-gradient(90deg,var(--c1),var(--c2),var(--c3),var(--c4),var(--c5));
+--mono:"Geist Mono","JetBrains Mono","SF Mono",ui-monospace,Menlo,monospace}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;color-scheme:dark}
+:focus-visible{outline:2px solid #d4d4d4;outline-offset:3px}
+body{background:var(--bg);color:var(--text);font:16px/1.6 "Geist",-apple-system,"PingFang SC","Inter",system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+a{color:inherit;text-decoration:none}
+code,kbd{font-family:var(--mono)}
+.wrap{max-width:1180px;margin:0 auto;padding:0 32px}
+nav{position:fixed;inset:0 0 auto;z-index:20;backdrop-filter:blur(14px);background:rgba(23,23,23,.7);border-bottom:1px solid rgba(255,255,255,.05)}
+nav .wrap{display:flex;align-items:center;justify-content:space-between;height:64px}
+.logo{display:flex;align-items:center;gap:10px;font-weight:600;font-size:17px;letter-spacing:-.2px}
+.wheel{width:20px;height:20px;border-radius:50%;background:conic-gradient(var(--c1),var(--c2),var(--c3),var(--c4),var(--c5),var(--c1));-webkit-mask:radial-gradient(circle,transparent 4px,#000 4.5px);mask:radial-gradient(circle,transparent 4px,#000 4.5px)}
+.nl{display:flex;gap:28px;align-items:center;color:var(--mute);font-size:14px}
+.nl a:hover{color:var(--text)}
+.btn{display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 20px;border-radius:999px;font-weight:500;font-size:15px;border:1px solid #2a3036;transition:.15s;white-space:nowrap}
+.btn:hover{border-color:#47515a}
+.btn.p{background:var(--text);color:#171717;border-color:var(--text)}
+.btn.p:hover{background:#fff}
+.btn.sm{height:36px;padding:0 16px;font-size:14px}
+.btn .ic{width:18px;height:18px;flex:none;fill:currentColor}.btn.sm .ic{width:16px;height:16px}
+/* hero */
+.hero{min-height:min(100vh,980px);display:flex;align-items:center;position:relative;padding:100px 0 40px}
+.hg{display:grid;grid-template-columns:1.15fr .85fr;gap:20px;align-items:center;width:100%}
+h1{font-size:clamp(46px,5.6vw,80px);line-height:1.04;letter-spacing:-.035em;font-weight:700}
+.g{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+h1 .g{white-space:nowrap;background:none;color:var(--text)}h1 .m{color:#d4d4d4}h1 .hu{color:var(--hh,#ff9f10);transition:color .6s}
+.lede{margin-top:26px;font-size:20px;line-height:1.6;color:#aeb6bd;max-width:480px}
+.acts{display:flex;gap:12px;margin-top:38px;flex-wrap:wrap}
+.cmd{margin-top:28px;display:block;width:fit-content;min-width:min(340px,100%);max-width:100%;font:14px var(--mono);background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.tabs{display:flex;border-bottom:1px solid var(--line)}
+.tabs button{font:inherit;color:var(--dim);background:none;border:0;border-bottom:1px solid transparent;margin-bottom:-1px;padding:9px 16px;cursor:pointer;transition:color .15s}
+.tabs button:hover{color:var(--text)}
+.tabs button[aria-selected=true]{color:var(--text);border-bottom-color:var(--text)}
+.cmd .row{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:12px 16px;color:#c8d0d6;white-space:nowrap;overflow-x:auto}
+.cmd .d{color:var(--dim)}
+.copy{cursor:pointer;color:var(--dim);border:0;background:none;font:inherit}
+.copy:hover{color:var(--text)}
+.stage{position:relative;aspect-ratio:580/1000;max-height:84vh;margin-left:auto;width:100%}
+.stage svg{position:absolute;inset:0;width:100%;height:100%;cursor:grab;touch-action:pan-y;user-select:none}
+.stage svg:active{cursor:grabbing}
+svg .ink{stroke:#a3a3a3;stroke-width:1.35;fill:none;stroke-linejoin:round;stroke-linecap:round}
+svg .thin{stroke:#737373;stroke-width:.7;fill:none;opacity:.55}
+svg .axis{stroke:#404040;stroke-width:1;stroke-dasharray:2 6;fill:none}
+svg .face3{fill:rgba(23,23,23,.94);stroke:#a3a3a3;stroke-width:1.15}
+svg .top3{fill:rgba(38,38,38,.95);stroke:#a3a3a3}
+svg .side3{fill:rgba(30,30,30,.95);stroke:#a3a3a3}
+svg .mod{transition:opacity .25s}
+svg .is-dim{opacity:.22}
+svg .is-active .ink,svg .is-active .thin,svg .is-active .face3,svg .is-active .top3,svg .is-active .side3{stroke:var(--h)}
+svg .is-active .thin{opacity:.6}
+svg .is-active .ink,svg .is-active .face3,svg .is-active .top3,svg .is-active .side3{stroke-width:2}
+/* sections */
+section{padding:140px 0}
+h2{font-size:clamp(34px,4vw,52px);line-height:1.12;letter-spacing:-.025em;font-weight:650}
+.sub{margin-top:18px;font-size:19px;color:var(--mute);max-width:620px}
+/* terminal */
+.term{margin-top:56px;border-radius:12px;background:#1c1c1c;border:1px solid var(--line);box-shadow:0 40px 120px -20px rgba(0,0,0,.45);overflow:hidden;position:relative}
+.tb{display:flex;align-items:center;gap:7px;padding:9px 14px;border-bottom:1px solid var(--line);background:#212121}
+.tb i{width:10px;height:10px;border-radius:50%;background:#404040}
+.tb span{margin-left:auto;margin-right:auto;font:12px var(--mono);color:var(--dim)}
+.tw{padding:14px 20px 12px;font:13px/1.55 var(--mono);color:#d4d4d4}
+.st{display:flex;align-items:center;gap:12px;margin-bottom:8px;line-height:1.4}
+.st .lg{width:30px;height:30px;flex:none}.st b{color:var(--text);font-weight:600}
+.wh{display:grid;grid-template-columns:1.1fr 1fr;border:1px solid var(--c1);border-radius:8px;margin-bottom:12px}
+.wl,.wr{padding:10px 16px}.wr{border-left:1px solid #3a3a3a}
+.wh .st{margin-bottom:6px}
+.kv span.m:first-child{display:inline-block;width:6em}
+.dot.b{color:var(--c5)}
+.tx{white-space:pre-wrap}
+.tx .u{color:var(--text)}
+.o{color:var(--c1)}.gr{color:var(--c3)}.b{color:var(--c5)}.m{color:var(--dim)}.del{color:var(--c1)}
+.dot{color:var(--c3)}.dot.f{color:var(--c1)}.dot.t{color:var(--text)}
+.df{display:block;margin-left:5ch;padding:0 8px;border-radius:3px}
+.df.r{background:rgba(255,106,26,.12);color:#ffb38a}.df.a{background:rgba(92,207,90,.12);color:#a9e8a7}
+.ib{margin-top:8px;border-top:1px solid #525252;border-bottom:1px solid #525252;padding:5px 0;color:var(--dim)}
+.ib .p{color:var(--text)}
+.ib .caret{display:inline-block;width:8px;height:17px;background:var(--text);vertical-align:-3px;animation:bl 1s steps(1) infinite}
+@keyframes bl{50%{opacity:0}}
+.ft{display:flex;justify-content:space-between;padding:5px 0 0;font:11.5px var(--mono);color:var(--dim)}
+/* commands */
+.cmds{display:grid;grid-template-columns:1.25fr 1fr;gap:28px;margin-top:64px}
+.cl{border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.cr{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:center;padding:18px 24px;border-top:1px solid var(--line);transition:background .15s}
+.cr:first-child{border-top:0}
+.cr:hover{background:rgba(255,255,255,.02)}
+.cr code{font-size:15px;color:var(--text)}
+.cr code .f{color:var(--c2)}.cr code .s{color:var(--c3)}
+.cr span{color:var(--mute);font-size:14px}
+.slash{border:1px solid var(--line);border-radius:16px;padding:26px;background:var(--panel)}
+.slash h3{font-size:17px;font-weight:600;margin-bottom:18px}
+.sl{display:flex;flex-wrap:wrap;gap:8px}
+.sl code{font-size:14px;padding:7px 12px;border-radius:8px;background:rgba(255,255,255,.035);border:1px solid var(--line);color:#e5e5e5}
+.keys{margin-top:26px;display:grid;gap:12px;font-size:14px;color:var(--mute)}
+.keys div{display:flex;justify-content:space-between}
+kbd{font-size:12.5px;padding:3px 8px;border-radius:6px;border:1px solid #404040;color:#e5e5e5;background:#262626}
+/* spectrum */
+.spec{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:64px}
+.lay{position:relative;border-radius:14px;padding:20px 20px 16px;background:#1c1c1c;border:1px solid var(--line);transition:border-color .2s,background .2s}
+.lay:hover{border-color:#404040;background:#1f1f1f}
+.lt{display:flex;align-items:center;gap:10px}
+.ln{font:500 12px var(--mono);color:var(--dim)}
+.lt code{font-size:15px;font-weight:600;color:var(--text)}
+.lay p{margin:6px 0 14px;color:var(--mute);font-size:14px}
+.opt{display:flex;flex-wrap:wrap;gap:6px}
+.opt button{font:12px var(--mono);color:var(--mute);background:transparent;border:1px solid #333;border-radius:999px;padding:4px 11px;cursor:pointer;transition:.15s}
+.opt button:hover{color:var(--text);border-color:#525252}
+.opt button.on{color:var(--h);background:color-mix(in srgb,var(--h) 10%,transparent);border-color:color-mix(in srgb,var(--h) 55%,transparent)}
+.lc{margin-top:12px;font:12px/1.5 var(--mono);color:#a3a3a3;white-space:pre-wrap;overflow-wrap:break-word;min-height:18px}
+.lay.base{grid-column:1/-1;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:24px}.lay.base p,.lay.base .lc{margin:0}.lay.base .opt{display:none}
+.feat{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:18px;overflow:hidden;margin-top:64px}
+.fe{background:var(--bg);padding:34px 30px;min-height:190px}
+.fe svg{width:30px;height:30px;stroke:var(--h);fill:none;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+.fe h3{font-size:18px;font-weight:600;margin:22px 0 8px}
+.fe p{color:var(--mute);font-size:15px;line-height:1.6}
+/* code */
+.cg{display:grid;grid-template-columns:.9fr 1.1fr;gap:64px;align-items:center}
+.code{background:#1c1c1c;border:1px solid var(--line);border-radius:16px;padding:28px 30px;font:14px/1.85 var(--mono);white-space:pre;overflow:auto;color:#d4d4d4}
+.k{color:var(--c5)}.s{color:var(--c3)}.f{color:var(--c2)}
+/* start */
+.start{text-align:center;padding:160px 0 140px;position:relative;overflow:hidden}
+.start .glow{position:absolute;left:50%;top:60%;width:1000px;height:500px;transform:translate(-50%,-50%);background:var(--grad);filter:blur(160px);opacity:.12;border-radius:50%}
+.start h2{font-size:clamp(40px,5vw,64px)}
+.ins{position:relative;margin:48px auto 0;max-width:600px;text-align:left;background:#1c1c1c;border:1px solid var(--line);border-radius:16px;padding:24px 28px;font:14.5px/2 var(--mono);color:#e5e5e5}
+.ins .d{color:var(--dim);user-select:none}
+.ins .copy{position:absolute;right:18px;top:18px;font-size:12px}
+footer{border-top:1px solid var(--line);padding:32px 0;color:var(--dim);font-size:13px}
+footer .wrap{display:flex;justify-content:space-between;align-items:center}
+footer a:hover{color:var(--text)}
+.rv{opacity:0;transform:translateY(24px);transition:opacity .9s cubic-bezier(.2,.7,.2,1),transform .9s cubic-bezier(.2,.7,.2,1)}
+.rv.in{opacity:1;transform:none}
+@media(max-width:900px){.hg,.cmds,.cg{grid-template-columns:1fr}.feat{grid-template-columns:1fr 1fr}.spec{grid-template-columns:1fr 1fr}.lay.base{display:block}.nl a:not(.btn){display:none}.stage{max-height:none;margin:0 auto;max-width:520px}}
+@media(max-width:700px){.wh{grid-template-columns:1fr}.wr{border-left:0;border-top:1px solid #3a3a3a}}
+@media(max-width:560px){.feat,.spec{grid-template-columns:1fr}.wrap{padding:0 20px}.cr{grid-template-columns:1fr;gap:4px;padding:14px 18px}.cr code{overflow-wrap:anywhere}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.rv{opacity:1;transform:none;transition:none}.ib .caret{animation:none}}
+</style>
+</head>
+<body>
+<!-- GitHub 图标：@lobehub/icons-static-svg（MIT） -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="i-github" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 0c6.63 0 12 5.276 12 11.79-.001 5.067-3.29 9.567-8.175 11.187-.6.118-.825-.25-.825-.56 0-.398.015-1.665.015-3.242 0-1.105-.375-1.813-.81-2.181 2.67-.295 5.475-1.297 5.475-5.822 0-1.297-.465-2.344-1.23-3.169.12-.295.54-1.503-.12-3.125 0 0-1.005-.324-3.3 1.209a11.32 11.32 0 00-3-.398c-1.02 0-2.04.133-3 .398-2.295-1.518-3.3-1.209-3.3-1.209-.66 1.622-.24 2.83-.12 3.125-.765.825-1.23 1.887-1.23 3.169 0 4.51 2.79 5.527 5.46 5.822-.345.294-.66.81-.765 1.577-.69.31-2.415.81-3.495-.973-.225-.354-.9-1.223-1.845-1.209-1.005.015-.405.56.015.781.51.28 1.095 1.327 1.23 1.666.24.663 1.02 1.93 4.035 1.385 0 .988.015 1.916.015 2.196 0 .31-.225.664-.825.56C3.303 21.374-.003 16.867 0 11.791 0 5.276 5.37 0 12 0z"/></symbol></svg>
+<nav><div class="wrap">
+  <a class="logo" href="#"><span class="wheel"></span>Hue</a>
+  <div class="nl"><a href="#cli">命令</a><a href="#features">能力</a><a href="#code">代码</a><a class="btn sm" href="https://github.com/hifizz/hue"><svg class="ic" aria-hidden="true"><use href="#i-github"/></svg>GitHub</a></div>
+</div></nav>
+
+<main>
+<header class="hero"><div class="wrap hg">
+  <div>
+    <h1><span class="m">几种<span class="hu">色相</span>，</span><br><span class="g">无数种 Agent。</span></h1>
+    <p class="lede">Hue 是一个开源的 agent harness。在终端里直接用，也能一层层拼进你自己的产品。</p>
+    <div class="acts"><a class="btn p" href="#start">开始使用</a><a class="btn" href="https://github.com/hifizz/hue"><svg class="ic" aria-hidden="true"><use href="#i-github"/></svg>GitHub</a></div>
+    <div class="cmd">
+      <div class="tabs" role="tablist" aria-label="包管理器">
+        <button role="tab" aria-selected="true" data-cmd="pnpm add -g @hue/cli">pnpm</button>
+        <button role="tab" aria-selected="false" tabindex="-1" data-cmd="npm install -g @hue/cli">npm</button>
+        <button role="tab" aria-selected="false" tabindex="-1" data-cmd="bun add -g @hue/cli">bun</button>
+        <button role="tab" aria-selected="false" tabindex="-1" data-cmd="yarn global add @hue/cli">yarn</button>
+      </div>
+      <div class="row" role="tabpanel"><span><span class="d">$</span> <span class="pm">pnpm add -g @hue/cli</span></span><button class="copy" data-copy="pnpm add -g @hue/cli">复制</button></div>
+    </div>
+  </div>
+  <div class="stage"><svg id="scene" viewBox="170 100 580 1000" role="img" aria-label="Hue 的 13 层结构线描图"></svg></div>
+</div></header>
+
+<section id="cli"><div class="wrap">
+  <h2 class="rv">在终端里，<br>它就是你的 agent。</h2>
+  <p class="sub rv">读代码、跑测试、改文件。每一步都看得见，每一步都能接着来。</p>
+  <div class="term rv">
+    <div class="tb"><i></i><i></i><i></i><span>hue — ~/acme-api</span></div>
+    <div class="tw">
+<div class="wh">
+<div class="wl"><div class="st"><svg class="lg" viewBox="0 0 44 44" fill="none" stroke-width="5" stroke-linecap="butt"><path d="M23.02 5.03A17 17 0 0 1 28.98 6.50" stroke="#ff6a1a"/><path d="M30.79 7.45A17 17 0 0 1 35.39 11.52" stroke="#ff8414"/><path d="M36.54 13.20A17 17 0 0 1 38.72 18.94" stroke="#ff9f10"/><path d="M38.97 20.97A17 17 0 0 1 38.23 27.06" stroke="#f5b700"/><path d="M37.51 28.97A17 17 0 0 1 34.02 34.03" stroke="#d9c41c"/><path d="M32.49 35.38A17 17 0 0 1 27.05 38.23" stroke="#a6cf33"/><path d="M25.07 38.72A17 17 0 0 1 18.93 38.72" stroke="#5ccf5a"/><path d="M16.95 38.23A17 17 0 0 1 11.51 35.38" stroke="#2fcb8e"/><path d="M9.98 34.03A17 17 0 0 1 6.49 28.97" stroke="#19c3bd"/><path d="M5.77 27.06A17 17 0 0 1 5.03 20.97" stroke="#17b9d6"/><path d="M5.28 18.94A17 17 0 0 1 7.46 13.20" stroke="#25adee"/><path d="M8.61 11.52A17 17 0 0 1 13.21 7.45" stroke="#3a9fff"/><path d="M15.02 6.50A17 17 0 0 1 20.98 5.03" stroke="#5e9bff"/></svg><div><b>Hue CLI</b> <span class="m">v0.0.0</span><br><span class="m">~/acme-api</span></div></div>
+<div class="kv"><span class="m">模型</span>claude-sonnet-5-5 <span class="m">· 1M</span></div>
+<div class="kv"><span class="m">沙箱</span>local <span class="m">· 当前目录</span></div>
+<div class="kv"><span class="m">策略</span>coding <span class="m">· 写入和命令先确认</span></div>
+<div class="kv"><span class="m">上下文</span>3 个技能 <span class="m">·</span> 记忆已开启</div>
+<div class="kv"><span class="m">会话</span>新会话 <span class="m">· hue.db</span></div></div>
+<div class="wr"><div class="o">能做什么</div>
+<div><span class="u">@</span> <span class="m">引用文件</span>　<span class="u">!</span> <span class="m">直接跑命令</span></div>
+<div><span class="u">task</span> <span class="m">派子 agent 并行查</span></div>
+<div><span class="u">/model</span> <span class="m">换模型</span>　<span class="u">/resume</span> <span class="m">接着上次</span></div>
+<div class="o" style="margin-top:8px">注意</div>
+<div class="m">--yes 会跳过所有确认</div>
+<div class="m">上下文快满时会自动压缩</div></div>
+</div>
+<div class="tx"><span class="m">❭</span> <span class="u">登录接口偶尔返回 401，帮我查一下</span>
+<span class="dot">●</span> <span class="u">grep</span>(<span class="m">"expiresAt", src/</span>)
+  <span class="m">⎿  4 matches</span>
+<span class="dot">●</span> <span class="u">read</span>(<span class="m">src/auth/session.ts</span>)
+  <span class="m">⎿  84 lines</span>
+<span class="dot f">●</span> <span class="u">bash</span>(<span class="m">npm test -- auth</span>)
+  <span class="m">⎿</span>  <span class="del">1 failed</span> <span class="m">· session.test.ts</span>
+<span class="dot t">●</span> <span class="u">expiresAt 存的是秒，比较时被当成了毫秒，token 一签出来就判定过期。</span>
+<span class="dot">●</span> <span class="u">edit</span>(<span class="m">src/auth/session.ts</span>)
+<span class="df r">41 -  if (Date.now() &gt; token.expiresAt) {</span><span class="df a">41 +  if (Date.now() &gt; token.expiresAt * 1000) {</span><span class="dot b">●</span> <span class="u">task</span>(<span class="m">找出 src/ 里其他把 expiresAt 当毫秒比较的地方</span>)
+  <span class="m">⎿</span>  <span class="b">子 agent</span> <span class="m">· 独立上下文 · 4 步 · ↑9.8k ↓0.7k</span>
+     <span class="m">├ grep("expiresAt")</span>
+     <span class="m">├ read(src/jobs/cleanup.ts)</span>
+     <span class="m">├ read(src/billing/invoice.ts)</span>
+     <span class="m">└</span> <span class="u">src/jobs/cleanup.ts:27 也是同样的问题，invoice.ts 没事</span>
+<span class="dot">●</span> <span class="u">edit</span>(<span class="m">src/jobs/cleanup.ts</span>)
+<span class="df r">27 -  if (s.expiresAt &lt; Date.now()) expired.push(s)</span><span class="df a">27 +  if (s.expiresAt * 1000 &lt; Date.now()) expired.push(s)</span><span class="dot">●</span> <span class="u">bash</span>(<span class="m">npm test</span>)
+  <span class="m">⎿</span>  <span class="gr">all passed</span>
+<span class="dot t">●</span> <span class="u">修好了。两处比较都把秒换算成毫秒，测试全部通过。</span></div>
+<div class="ib"><span class="p">❭</span> <span class="caret"></span></div>
+<div class="ft"><span>↑38k ↓4.2k R112k W9.6k <span class="gr">4.3%</span>/1M</span><span>claude-sonnet-5-5</span></div>
+    </div>
+  </div>
+
+  <div class="cmds">
+    <div class="cl rv">
+      <div class="cr"><code>hue</code><span>打开交互界面</span></div>
+      <div class="cr"><code>hue <span class="s">"看看这个仓库"</span></code><span>带着任务打开</span></div>
+      <div class="cr"><code>hue <span class="f">-p</span> <span class="s">"修好失败的测试"</span></code><span>跑完就退出</span></div>
+      <div class="cr"><code>hue <span class="f">-p --json</span> <span class="s">"…"</span></code><span>每个事件一行 JSON</span></div>
+      <div class="cr"><code>hue <span class="f">-c</span></code><span>接着上一次</span></div>
+      <div class="cr"><code>hue <span class="f">--model</span> &lt;name&gt;</code><span>换一个模型</span></div>
+      <div class="cr"><code>hue <span class="f">--sandbox</span> docker</code><span>在容器里跑</span></div>
+    </div>
+    <div class="slash rv">
+      <h3>斜杠命令</h3>
+      <div class="sl"><code>/model</code><code>/resume</code><code>/session</code><code>/name</code><code>/copy</code><code>/export</code><code>/new</code><code>/hotkeys</code><code>/quit</code><code>!cmd</code></div>
+      <div class="keys">
+        <div><span>展开工具输出</span><kbd>Ctrl O</kbd></div>
+        <div><span>显示思考</span><kbd>Ctrl T</kbd></div>
+        <div><span>打断</span><kbd>Esc</kbd></div>
+        <div><span>引用文件</span><kbd>@</kbd></div>
+      </div>
+    </div>
+  </div>
+</div></section>
+
+<section id="features"><div class="wrap">
+  <h2 class="rv">一个 harness 该有的，<br>都在。</h2>
+  <div class="feat rv">
+    <div class="fe" style="--h:var(--c1)"><svg viewBox="0 0 32 32"><path d="M6 22 16 12M19 6l7 7-4 4-7-7zM4 28l4-4"/></svg><h3>工具</h3><p>读、写、搜索、执行命令。任意 MCP server 接上就能用。</p></div>
+    <div class="fe" style="--h:#ff9f10"><svg viewBox="0 0 32 32"><rect x="6" y="5" width="20" height="5" rx="1"/><rect x="6" y="13.5" width="20" height="5" rx="1"/><rect x="6" y="22" width="20" height="5" rx="1"/></svg><h3>会话</h3><p>每一步都写进事件日志。中断了、进程挂了，接着跑。</p></div>
+    <div class="fe" style="--h:var(--c2)"><svg viewBox="0 0 32 32"><rect x="5" y="5" width="22" height="22" rx="2"/><path d="M11 5v22M16 5v22M21 5v22"/></svg><h3>沙箱</h3><p>在本机目录上跑，或者在 Docker 里的仓库副本上跑。</p></div>
+    <div class="fe" style="--h:#a6cf33"><svg viewBox="0 0 32 32"><path d="M16 4 6 8v8c0 6 4.5 10 10 12 5.5-2 10-6 10-12V8z"/><path d="m12 16 3 3 6-6"/></svg><h3>权限</h3><p>每次工具调用都过一遍规则：放行、拒绝，或者先问你。</p></div>
+    <div class="fe" style="--h:var(--c3)"><svg viewBox="0 0 32 32"><path d="M5 9h22M5 16h16M5 23h10"/><path d="m23 20 4 3-4 3"/></svg><h3>上下文</h3><p>对话变长时自动压缩，长任务不断片。</p></div>
+    <div class="fe" style="--h:#2fcb8e"><svg viewBox="0 0 32 32"><ellipse cx="16" cy="8" rx="10" ry="3.5"/><path d="M6 8v16c0 2 4.5 3.5 10 3.5S26 26 26 24V8M6 16c0 2 4.5 3.5 10 3.5S26 18 26 16"/></svg><h3>Skills 与记忆</h3><p>SKILL.md 按需加载，笔记跨会话留着。</p></div>
+    <div class="fe" style="--h:var(--c4)"><svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="4"/><circle cx="6" cy="7" r="2.5"/><circle cx="26" cy="7" r="2.5"/><circle cx="16" cy="28" r="2.5"/><path d="m13 13-5-4M19 13l5-4M16 20v5.5"/></svg><h3>子 agent</h3><p>把一块活儿交给子 agent，结果再回到主线。</p></div>
+    <div class="fe" style="--h:#25adee"><svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="11"/><path d="M5 16h22M16 5c3.5 3.5 3.5 18.5 0 22M16 5c-3.5 3.5-3.5 18.5 0 22"/></svg><h3>Gateway</h3><p>HTTP 和 SSE 接入，签名 webhook 连到聊天软件。</p></div>
+    <div class="fe" style="--h:var(--c5)"><svg viewBox="0 0 32 32"><path d="M4 26h24M8 22v-6M14 22V10M20 22v-9M26 22V6"/></svg><h3>观测与评测</h3><p>事件导出成 OpenTelemetry，同一份事件拿来跑 eval。</p></div>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <h2 class="rv">每一层，都能换。</h2>
+  <p class="sub rv">十三个小包，只靠带版本号的事件相连。换模型、换存储、换沙箱，其余不动。</p>
+  <div class="spec rv">
+    <div class="lay base" style="--h:#ff6a1a"><div class="lt"><span class="ln">01</span><code>@hue/core</code></div><p>类型、事件和循环</p><div class="opt"><button data-c="ModelPort · Tool · SandboxPort …" class=on>契约</button></div><pre class="lc">ModelPort · Tool · SandboxPort …</pre></div>
+    <div class="lay" style="--h:#ff8414"><div class="lt"><span class="ln">02</span><code>@hue/ai</code></div><p>模型适配</p><div class="opt"><button data-c="model('anthropic:claude-sonnet-5-5')" class=on>anthropic</button><button data-c="model: myModelPort">自己写</button></div><pre class="lc">model('anthropic:claude-sonnet-5-5')</pre></div>
+    <div class="lay" style="--h:#ff9f10"><div class="lt"><span class="ln">03</span><code>@hue/tools</code></div><p>工具</p><div class="opt"><button data-c="tools: codingTools()" class=on>coding</button><button data-c="tools: [...codingTools(), ...await mcp.stdio('npx', [...], { name: 'github' })]">mcp</button></div><pre class="lc">tools: codingTools()</pre></div>
+    <div class="lay" style="--h:#f5b700"><div class="lt"><span class="ln">04</span><code>@hue/store</code></div><p>事件日志</p><div class="opt"><button data-c="store: sqliteStore('hue.db')" class=on>sqlite</button><button data-c="store: memoryStore()">memory</button></div><pre class="lc">store: sqliteStore('hue.db')</pre></div>
+    <div class="lay" style="--h:#d9c41c"><div class="lt"><span class="ln">05</span><code>@hue/context</code></div><p>上下文压缩</p><div class="opt"><button data-c="context: foldToolResults()" class=on>foldToolResults</button><button data-c="context: summarize({ model })">summarize</button><button data-c="context: truncate()">truncate</button></div><pre class="lc">context: foldToolResults()</pre></div>
+    <div class="lay" style="--h:#a6cf33"><div class="lt"><span class="ln">06</span><code>@hue/skills</code></div><p>按需加载 SKILL.md</p><div class="opt"><button data-c="skills: fromDir('./skills')" class=on>目录</button><button data-c="skills: undefined">关闭</button></div><pre class="lc">skills: fromDir('./skills')</pre></div>
+    <div class="lay" style="--h:#5ccf5a"><div class="lt"><span class="ln">07</span><code>@hue/memory</code></div><p>跨会话笔记</p><div class="opt"><button data-c="memory: file('./notes')" class=on>文件</button><button data-c="memory: undefined">关闭</button></div><pre class="lc">memory: file('./notes')</pre></div>
+    <div class="lay" style="--h:#2fcb8e"><div class="lt"><span class="ln">08</span><code>@hue/policy</code></div><p>放行、拒绝或先问</p><div class="opt"><button data-c="policy: presets.coding()" class=on>coding</button><button data-c="policy: presets.yolo()">yolo</button><button data-c="policy: rules([...])">自定义</button></div><pre class="lc">policy: presets.coding()</pre></div>
+    <div class="lay" style="--h:#19c3bd"><div class="lt"><span class="ln">09</span><code>@hue/sandbox</code></div><p>在哪里执行</p><div class="opt"><button data-c="sandbox: await local({ root: '.' })" class=on>local</button><button data-c="sandbox: await docker({ mount: '.' })">docker</button></div><pre class="lc">sandbox: await local({ root: '.' })</pre></div>
+    <div class="lay" style="--h:#17b9d6"><div class="lt"><span class="ln">10</span><code>@hue/runtime</code></div><p>把各层装成 agent</p><div class="opt"><button data-c="createAgent({ model, tools, store, … })" class=on>createAgent</button></div><pre class="lc">createAgent({ model, tools, store, … })</pre></div>
+    <div class="lay" style="--h:#25adee"><div class="lt"><span class="ln">11</span><code>@hue/gateway</code></div><p>HTTP、SSE 和 webhook</p><div class="opt"><button data-c="createGateway({ agent })" class=on>http</button><button data-c="webhookChannel({ name: 'slack', secret, send })">webhook</button></div><pre class="lc">createGateway({ agent })</pre></div>
+    <div class="lay" style="--h:#3a9fff"><div class="lt"><span class="ln">12</span><code>@hue/telemetry</code></div><p>导出 OpenTelemetry</p><div class="opt"><button data-c="otlpHttp({ url })" class=on>otlp</button><button data-c="telemetry: undefined">关闭</button></div><pre class="lc">otlpHttp({ url })</pre></div>
+    <div class="lay" style="--h:#5e9bff"><div class="lt"><span class="ln">13</span><code>@hue/eval</code></div><p>跑任务、打分</p><div class="opt"><button data-c="codingTasks()" class=on>coding</button><button data-c="repoTask({ id, prompt, files, tests, run })">repo</button></div><pre class="lc">codingTasks()</pre></div>
+  </div>
+</div></section>
+
+<section id="code"><div class="wrap cg">
+  <div class="rv">
+    <h2>也能写进<br>你的代码。</h2>
+    <p class="sub">挑几层，拼一份配方。<code>hue</code> 命令本身就是这样拼出来的。</p>
+  </div>
+<div class="code rv"><span class="k">import</span> { createAgent } <span class="k">from</span> <span class="s">'@hue/runtime'</span>
+<span class="k">import</span> { model } <span class="k">from</span> <span class="s">'@hue/ai'</span>
+<span class="k">import</span> { codingTools } <span class="k">from</span> <span class="s">'@hue/tools'</span>
+<span class="k">import</span> { sqliteStore } <span class="k">from</span> <span class="s">'@hue/store'</span>
+<span class="k">import</span> { local } <span class="k">from</span> <span class="s">'@hue/sandbox'</span>
+<span class="k">import</span> { presets } <span class="k">from</span> <span class="s">'@hue/policy'</span>
+
+<span class="k">const</span> agent = <span class="f">createAgent</span>({
+  model:   <span class="f">model</span>(<span class="s">'anthropic:claude-sonnet-5-5'</span>),
+  tools:   <span class="f">codingTools</span>(),
+  store:   <span class="f">sqliteStore</span>(<span class="s">'hue.db'</span>),
+  sandbox: <span class="k">await</span> <span class="f">local</span>({ root: <span class="s">'.'</span> }),
+  policy:  presets.<span class="f">coding</span>(),
+})
+
+<span class="k">for await</span> (<span class="k">const</span> e <span class="k">of</span> agent.<span class="f">run</span>(<span class="s">'修好失败的测试'</span>))
+  <span class="f">render</span>(e)</div>
+</div></section>
+
+<section class="start" id="start"><div class="glow"></div><div class="wrap">
+  <h2 class="rv">调一个你自己的 agent。</h2>
+  <div class="ins rv"><button class="copy" data-copy="git clone https://github.com/hifizz/hue
+cd hue/hue && npm install
+npm install -g ./packages/cli
+export ANTHROPIC_API_KEY=sk-...
+hue">复制</button><span class="d">$ </span>git clone https://github.com/hifizz/hue
+<span class="d">$ </span>cd hue/hue &amp;&amp; npm install
+<span class="d">$ </span>npm install -g ./packages/cli
+<span class="d">$ </span>export ANTHROPIC_API_KEY=sk-...
+<span class="d">$ </span><span class="g">hue</span></div>
+  <div class="acts rv" style="justify-content:center"><a class="btn p" href="https://github.com/hifizz/hue"><svg class="ic" aria-hidden="true"><use href="#i-github"/></svg>在 GitHub 上查看</a></div>
+</div></section>
+</main>
+
+<footer><div class="wrap"><a class="logo" href="#" style="font-size:14px"><span class="wheel" style="width:16px;height:16px"></span>Hue</a><span><a href="https://github.com/hifizz/hue">GitHub</a> · Zilin</span></div></footer>
+
+<script>
+const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}}),{rootMargin:'0px 0px -10% 0px'});
+document.querySelectorAll('.rv').forEach(el=>io.observe(el));
+document.querySelectorAll('[data-copy]').forEach(b=>b.addEventListener('click',async()=>{const t=b.dataset.label??=b.textContent;try{await navigator.clipboard.writeText(b.dataset.copy);b.textContent='已复制'}catch{b.textContent='复制失败'}setTimeout(()=>b.textContent=t,1200)}));
+document.querySelectorAll('.tabs').forEach(t=>{const tabs=[...t.querySelectorAll('[role=tab]')];const pick=b=>{tabs.forEach(x=>{x.setAttribute('aria-selected',x===b);x.tabIndex=x===b?0:-1});const c=t.parentElement;c.querySelector('.pm').textContent=b.dataset.cmd;c.querySelector('.copy').dataset.copy=b.dataset.cmd};t.addEventListener('click',e=>{const b=e.target.closest('[role=tab]');if(b)pick(b)});t.addEventListener('keydown',e=>{const d={ArrowRight:1,ArrowLeft:-1}[e.key];if(!d)return;const b=tabs[(tabs.indexOf(document.activeElement)+d+tabs.length)%tabs.length];pick(b);b.focus()})});
+document.querySelectorAll('.opt button').forEach(b=>b.setAttribute('aria-pressed',b.classList.contains('on')));
+document.querySelectorAll('.lay .opt').forEach(o=>o.addEventListener('click',ev=>{const t=ev.target.closest('button');if(!t)return;o.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x===t);x.setAttribute('aria-pressed',x===t)});const p=o.nextElementSibling;p.textContent=t.dataset.c;p.animate([{opacity:0,transform:'translateY(4px)'},{opacity:1,transform:'none'}],{duration:220})}));
+</script>
+<script>
+var Linework=(()=>{var F=Object.defineProperty;var D=Object.getOwnPropertyDescriptor;var I=Object.getOwnPropertyNames;var P=Object.prototype.hasOwnProperty;var R=(e,t)=>{for(var s in t)F(e,s,{get:t[s],enumerable:!0})},S=(e,t,s,n)=>{if(t&&typeof t=="object"||typeof t=="function")for(let r of I(t))!P.call(e,r)&&r!==s&&F(e,r,{get:()=>t[r],enumerable:!(n=D(t,r))||n.enumerable});return e};var X=e=>S(F({},"__esModule",{value:!0}),e);var G={};R(G,{orbit:()=>B,render:()=>j,scene:()=>Z,sketch:()=>z,xform:()=>q});function q(e){let t=Math.cos(e.yaw),s=Math.sin(e.yaw),n=Math.cos(e.pitch),r=Math.sin(e.pitch);return o=>{let i=o[0]-e.cx,a=o[1]-e.cy,p=t*i-s*o[2],d=s*i+t*o[2],x=n*a+r*d,h=-r*a+n*d,u=e.f/(e.f-h);return{x:e.cx+p*u,y:e.cy+x*u,z:h,k:u}}}var c=e=>e.toFixed(1);function Y(e,t){let s=[];return{str:e.map(r=>{if(r[0]==="Z")return"Z";if(r[0]==="Q"){let i=t(r[1]),a=t(r[2]);return s.push(i.z,a.z),`Q ${c(i.x)} ${c(i.y)} ${c(a.x)} ${c(a.y)}`}let o=t(r[1]);return s.push(o.z),`${r[0]} ${c(o.x)} ${c(o.y)}`}).join(" "),zs:s}}var Q=e=>e<-12?Math.max(.55,1+(e+12)/420).toFixed(2):"";function O(e,t){if(e.t==="path"){let{str:i,zs:a}=Y(e.d,t),p=a.reduce((u,f)=>u+f,0)/(a.length||1),d=Q(p),x=e.fill??"none";return{svg:e.strokes.map((u,f)=>`<path d="${i}" class="${u.cls}${e.tag?" "+e.tag:""}"${u.w?` stroke-width="${c(u.w)}"`:""} fill="${f===0?x:"none"}"${d&&f===0?` opacity="${d}"`:d?` opacity="${d}"`:""}/>`).join(""),depth:p+(e.bias??0)}}if(e.t==="disc"||e.t==="face"){let i=t(e.c),a=Q(i.z),p;if(e.t==="disc"){let h=t([e.c[0]+1,e.c[1],e.c[2]]),u=t([e.c[0],e.c[1]+1,e.c[2]]),f=Math.hypot(h.x-i.x,h.y-i.y)*e.r,l=Math.hypot(u.x-i.x,u.y-i.y)*e.r,g=Math.atan2(h.y-i.y,h.x-i.x)*180/Math.PI;p=`<ellipse cx="${c(i.x)}" cy="${c(i.y)}" rx="${c(f)}" ry="${c(l)}" transform="rotate(${c(g)} ${c(i.x)} ${c(i.y)})"`}else p=`<circle cx="${c(i.x)}" cy="${c(i.y)}" r="${c(e.r*i.k)}"`;let d=e.fill??"none";return{svg:e.strokes.map((h,u)=>p+` class="${h.cls}${e.tag?" "+e.tag:""}"${h.w?` stroke-width="${c(h.w)}"`:""} fill="${u===0?d:"none"}"${a?` opacity="${a}"`:""}/>`).join(""),depth:i.z+(e.bias??0)}}let s=e.q.map(t),n=(s[1].x-s[0].x)*(s[2].y-s[0].y)-(s[2].x-s[0].x)*(s[1].y-s[0].y);if(e.cull&&n<=0)return{svg:"",depth:-1/0};let r=(s[0].z+s[1].z+s[2].z+s[3].z)/4+(e.bias??0);return{svg:`<path d="${`M ${c(s[0].x)} ${c(s[0].y)} L ${c(s[1].x)} ${c(s[1].y)} L ${c(s[2].x)} ${c(s[2].y)} L ${c(s[3].x)} ${c(s[3].y)} Z`}" class="${e.cls}${e.tag?" "+e.tag:""}"/>`,depth:r}}function j(e,t,s={}){let n=q(t),r=[],o=new Map;for(let i of e){let a=O(i,n);if(a.svg)if(i.part){let p=o.get(i.part)??{svgs:[],depths:[]};p.svgs.push(a.svg),p.depths.push(a.depth),o.set(i.part,p)}else r.push(a)}for(let[i,a]of o){let p=a.depths.reduce((x,h)=>x+h,0)/a.depths.length,d=s[i];r.push({svg:`<g ${d?d.attrs:""}>${a.svgs.join("")}</g>`,depth:p,part:i})}return r.sort((i,a)=>i.depth-a.depth),r.map(i=>i.svg).join("")}var A=class{shape;constructor(t){this.shape=t}M(t,s=0){return this.shape.d.push(["M",[t[0],t[1],s]]),this}L(t,s=0){return this.shape.d.push(["L",[t[0],t[1],s]]),this}Q(t,s,n,r=0){return this.shape.d.push(["Q",[t[0],t[1],s],[n[0],n[1],r]]),this}close(){return this.shape.d.push(["Z"]),this}stroke(t,s){return this.shape.strokes.push({cls:t,w:s}),this}fill(t){return this.shape.fill=t,this}},E=class{view;X;shapes=[];parts={};paperStrs=[];ctx={bias:0};constructor(t){this.view=t,this.X=q(t)}scoped(t,s){let n=this.ctx;this.ctx={...n,...t,bias:n.bias+(t.bias??0)};try{s()}finally{this.ctx=n}return this}part(t,s,n){return this.parts[t]={attrs:s},this.scoped({part:t},n)}tag(t,s){return this.scoped({tag:this.ctx.tag?`${this.ctx.tag} ${t}`:t},s)}bias(t,s){return this.scoped({bias:t},s)}opt(){let t={};return this.ctx.part&&(t.part=this.ctx.part),this.ctx.tag&&(t.tag=this.ctx.tag),this.ctx.bias&&(t.bias=this.ctx.bias),t}path(t,s){let n={t:"path",d:[],strokes:[{cls:t,w:s}],...this.opt()};return this.shapes.push(n),new A(n)}tube(t,s="tube",n="tube-in"){return this.path(s,t).stroke(n,Math.max(1.5,t-5))}line(t,s,n,r,o,i){return this.path(o,i).M(t,s).L(n,r),this}disc(t,s,n,r,o){let i=typeof r=="string"?[{cls:r}]:r;return this.shapes.push({t:"disc",c:[t[0],t[1],s],r:n,strokes:i,fill:o,...this.opt()}),this}cap(t,s,n,r,o){return this.shapes.push({t:"face",c:[t[0],t[1],s],r:n,strokes:[{cls:r}],fill:o,...this.opt()}),this}box(t,s,n,r,o,i,a={}){let{face:p="face3",top:d="top3",side:x="side3"}=a,h=o-i,u=this.opt(),f=u.bias??0,l=[t,s,o],g=[t+n,s,o],m=[t+n,s+r,o],k=[t,s+r,o],b=[t,s,h],w=[t+n,s,h],v=[t+n,s+r,h],M=[t,s+r,h],y=($,L,C)=>this.shapes.push({t:"quad",q:$,cls:L,cull:!0,...u,bias:C});return y([l,b,w,g],d,f),y([k,m,v,M],d,f),y([l,b,M,k],x,f),y([g,m,v,w],x,f),y([b,M,v,w],p,f+.1),y([l,g,m,k],p,f+.2),this}cyl(t,s,n,r,o="ink",i){let a=this.X([t[0],t[1],n]),p=this.X([t[0],t[1],r]),d=a.x-p.x,x=a.y-p.y,h=Math.hypot(d,x)||1,u=-x/h*s,f=d/h*s;this.cap(t,r,s,o),this.line([t[0]+u,t[1]+f],r,[t[0]+u,t[1]+f],n,o),this.line([t[0]-u,t[1]-f],r,[t[0]-u,t[1]-f],n,o);let l=this.opt();return this.shapes.push({t:"face",c:[t[0],t[1],n],r:s,strokes:[{cls:o}],fill:i,...l,bias:(l.bias??0)+.5}),this}pt(t,s=0){let n=this.X([t[0],t[1],s]);return[n.x,n.y]}paper(t){return this.paperStrs.push(t),this}note(t,s,n=0,r="an",o=6,i=4){let a=this.pt(s,n);return this.paper(`<text x="${(a[0]+o).toFixed(1)}" y="${(a[1]+i).toFixed(1)}" class="${r}">${t}</text>`)}count(){return this.shapes.length}render(){return j(this.shapes,this.view,this.parts)+this.paperStrs.join("")}},z=e=>new E(e);function Z(e){return(t,s)=>{let n=z(t);return e(n,s),n.render()}}function B(e,t){let s={...t.view},[n,r]=t.yawRange??[-1.1,1.1],[o,i]=t.pitchRange??[-.3,.6],a=t.idle??.12,p=(y,$,L)=>Math.max($,Math.min(L,y)),d=!1,x=0,h=0,u=0,f=0,l=0,g=!1,m=a>0&&(typeof matchMedia>"u"||!matchMedia("(prefers-reduced-motion: reduce)").matches),k=()=>{l=0,t.onFrame({...s})},b=()=>{l||(l=requestAnimationFrame(k))};e.addEventListener("pointerdown",y=>{let $=y;$.target?.closest?.("[data-no-orbit]")||(m=!1,d=!0,x=$.clientX,h=$.clientY,u=s.yaw,f=s.pitch,e.setPointerCapture?.($.pointerId))}),e.addEventListener("pointermove",y=>{if(!d)return;let $=y;s.yaw=p(u+($.clientX-x)/260,n,r),s.pitch=p(f+($.clientY-h)/340,o,i),b()});let w=()=>{d=!1};e.addEventListener("pointerup",w),e.addEventListener("pointercancel",w),e.addEventListener("dblclick",()=>{s.yaw=t.view.yaw,s.pitch=t.view.pitch,b()});let v=performance.now(),M=y=>{g||(m&&(s.yaw=p(t.view.yaw+Math.sin((y-v)/1700)*a,n,r),s.pitch=p(t.view.pitch+Math.sin((y-v)/2500)*a*.35,o,i),t.onFrame({...s})),requestAnimationFrame(M))};return t.onFrame({...s}),m&&requestAnimationFrame(M),{view:s,redraw:()=>t.onFrame({...s}),stop:()=>{g=!0,m=!1}}}return X(G);})();
+</script>
+<script>
+(function(){
+const CX=460,CY=600;
+const HUES=['#ff6a1a','#ff8414','#ff9f10','#f5b700','#d9c41c','#a6cf33','#5ccf5a','#2fcb8e','#19c3bd','#17b9d6','#25adee','#3a9fff','#5e9bff'];
+const MODULES=[
+ {id:"provider",kind:"nozzle",h:60,r:70},{id:"loop",kind:"cyl",h:76,r:92},{id:"tools",kind:"box",h:40,r:80,ports:true},
+ {id:"eventlog",kind:"stack",h:52,r:88},{id:"context",kind:"box",h:44,r:76},{id:"skills",kind:"box",h:34,r:66},
+ {id:"memory",kind:"drum",h:44,r:78},{id:"policy",kind:"ring",h:24,r:104},{id:"sandbox",kind:"cage",h:58,r:96},
+ {id:"subagents",kind:"pods",h:42,r:84},{id:"gateway",kind:"hub",h:34,r:74},{id:"telemetry",kind:"gauge",h:22,r:98},{id:"eval",kind:"cone",h:62,r:70}];
+function ring(s,y,r,cls){const n=8,p=s.path(cls);for(let i=0;i<=n;i++){const a=i/n*Math.PI*2,x=CX+r*Math.cos(a),z=r*Math.sin(a);if(!i){p.M([x,y],z);continue}const am=(i-.5)/n*Math.PI*2,rc=r/Math.cos(Math.PI/n);p.Q([CX+rc*Math.cos(am),y],rc*Math.sin(am),[x,y],z)}}
+function rails(s,yT,yB,rT,rB,cls,c){for(let i=0;i<c;i++){const a=i/c*Math.PI*2;s.line([CX+rT*Math.cos(a),yT],rT*Math.sin(a),[CX+rB*Math.cos(a),yB],rB*Math.sin(a),cls)}}
+const BC={face:"face3",top:"top3",side:"side3"};
+function cbox(s,y,half,h){s.box(CX-half,y,half*2,h,half,half*2,BC)}
+function build(s,props){const{explode=1,active=null}=props;const gap=6+explode*24;const total=MODULES.reduce((a,m)=>a+m.h,0)+gap*(MODULES.length-1);let yB=CY+total/2;
+ MODULES.forEach((m,idx)=>{const yT=yB-m.h,yM=yT+m.h/2;const on=active===m.id?" is-active":active?" is-dim":"";const ink="ink";
+ s.part(m.id,`class="mod${on}" data-mod="${m.id}" style="--h:${HUES[idx]}"`,()=>{switch(m.kind){
+ case"nozzle":ring(s,yT,m.r*.55,ink);ring(s,yB,m.r,ink);rails(s,yT,yB,m.r*.55,m.r,ink,8);break;
+ case"cyl":ring(s,yT,m.r,ink);ring(s,yB,m.r,ink);ring(s,yM,m.r*.62,"thin");rails(s,yT,yB,m.r,m.r,ink,12);break;
+ case"box":cbox(s,yT,m.r,m.h);if(m.ports)for(const sx of[-1,1])for(const dz of[-40,0,40]){s.line([CX+sx*m.r,yM],dz,[CX+sx*(m.r+26),yM],dz,"ink");s.disc([CX+sx*(m.r+30),yM],dz,5,"ink")}break;
+ case"stack":for(let i=0;i<4;i++)ring(s,yT+i*m.h/3,m.r,i===0||i===3?ink:"thin");rails(s,yT,yB,m.r,m.r,"thin",16);break;
+ case"ring":ring(s,yT,m.r,ink);ring(s,yB,m.r,ink);ring(s,yT,m.r*.8,"thin");ring(s,yB,m.r*.8,"thin");rails(s,yT,yB,m.r,m.r,"thin",24);break;
+ case"cage":ring(s,yT,m.r,ink);ring(s,yB,m.r,ink);ring(s,yM,m.r,"thin");rails(s,yT,yB,m.r,m.r,ink,10);cbox(s,yT+16,30,m.h-32);break;
+ case"pods":ring(s,yT,34,ink);ring(s,yB,34,ink);rails(s,yT,yB,34,34,ink,8);for(let i=0;i<3;i++){const a=i/3*Math.PI*2+.5,px=CX+m.r*Math.cos(a),pz=m.r*Math.sin(a);s.line([CX+34*Math.cos(a),yM],34*Math.sin(a),[px,yM],pz,"thin");s.box(px-14,yM-14,28,28,pz+14,28,BC)}break;
+ case"drum":ring(s,yT,m.r,ink);ring(s,yB,m.r,ink);for(let i=1;i<4;i++)ring(s,yT+i*m.h/4,m.r,"thin");rails(s,yT,yB,m.r,m.r,ink,6);ring(s,yT,m.r*.4,"thin");break;
+ case"hub":ring(s,yT,m.r,ink);ring(s,yB,m.r,ink);rails(s,yT,yB,m.r,m.r,ink,10);for(let i=0;i<5;i++){const a=i/5*Math.PI*2+.3,c=Math.cos(a),z=Math.sin(a);s.line([CX+m.r*c,yM],m.r*z,[CX+(m.r+30)*c,yM],(m.r+30)*z,"ink");s.disc([CX+(m.r+34)*c,yM],(m.r+34)*z,4,"ink")}break;
+ case"gauge":ring(s,yT,m.r,ink);ring(s,yB,m.r,ink);for(let i=0;i<36;i++){const a=i/36*Math.PI*2,r2=m.r+(i%3===0?12:6);s.line([CX+m.r*Math.cos(a),yT],m.r*Math.sin(a),[CX+r2*Math.cos(a),yT],r2*Math.sin(a),"thin")}rails(s,yT,yB,m.r,m.r,"thin",18);break;
+ case"cone":ring(s,yB,m.r,ink);rails(s,yT,yB,.1,m.r,ink,10);ring(s,yB-m.h*.45,m.r*.55,"thin");break;}});
+ yB=yT-gap;});
+ s.bias(-5,()=>s.line([CX,CY+total/2+30],0,[CX,CY-total/2-30],0,"axis"));}
+const draw=Linework.scene(build);
+const svg=document.getElementById('scene');
+let view={yaw:.55,pitch:.32,f:1600,cx:460,cy:600},explode=0,active=null;
+let seen=true,stale=false;
+const paint=()=>{if(!seen){stale=true;return}stale=false;svg.innerHTML=draw(view,{explode,active})};
+new IntersectionObserver(([e])=>{seen=e.isIntersecting;if(seen&&stale)paint()}).observe(svg);
+Linework.orbit(svg,{view:{...view},onFrame:v=>{view=v;paint()},yawRange:[-1.2,1.2],pitchRange:[.05,.6]});
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+if(reduce){explode=1;paint()}else{const t0=performance.now()+300;const step=t=>{const k=Math.max(0,Math.min(1,(t-t0)/1600));explode=k<.5?4*k*k*k:1-Math.pow(-2*k+2,3)/2;paint();if(k<1)requestAnimationFrame(step)};requestAnimationFrame(step)}
+const hu=document.querySelector('h1 .hu');let auto=0,hover=false;
+const setA=id=>{active=id;const i=MODULES.findIndex(m=>m.id===id);if(hu&&i>=0)hu.style.setProperty('--hh',HUES[i]);paint()};
+const tick=()=>{if(hover)return;setA(MODULES[auto%MODULES.length].id);auto++};
+setTimeout(()=>{tick();if(!reduce)setInterval(tick,2600)},reduce?0:2000);
+svg.addEventListener('pointerover',e=>{const g=e.target.closest&&e.target.closest('g[data-mod]');if(g){hover=true;setA(g.dataset.mod)}});
+svg.addEventListener('pointerleave',()=>{hover=false});
+})();
+</script>
+</body></html>

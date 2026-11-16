@@ -7,3 +7,4 @@ dist/
 sources/
 hue.db*
 trace*.jsonl
+.vercel
