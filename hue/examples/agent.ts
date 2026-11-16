@@ -66,7 +66,8 @@ export async function runAgent(o: AgentOptions): Promise<RunResult> {
 export function modelFromEnv(trace?: (e: object) => void): ModelPort {
   return model(`anthropic:${process.env.HUE_MODEL ?? 'claude-sonnet-5-5'}`, {
     apiKey: process.env.AI_GATEWAY_API_KEY || process.env.ANTHROPIC_API_KEY, baseURL: process.env.AI_GATEWAY_BASE_URL || process.env.ANTHROPIC_BASE_URL,
-    thinking: { type: 'adaptive', display: 'summarized' }, trace,
+    // HUE_THINKING=off：不发 thinking 参数（排查长推理让流超时，或模型不支持 thinking）。
+    ...(process.env.HUE_THINKING === 'off' ? {} : { thinking: { type: 'adaptive' as const, display: 'summarized' as const } }), trace,
   })
 }
 
@@ -115,7 +116,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     result = await runAgent({
       model: llm,
       // 先折叠旧的大工具结果（不花钱、可恢复），不够再让同一个模型写摘要（长任务内部也能切，见 packages/context/DECISIONS.md 第 0 条）。
-      context: chain(foldToolResults(), summarize({ model: llm })),
+      // HUE_CONTEXT_BUDGET=token 数：覆盖"窗口 80%"的压缩触发线（1M 窗口下很难触发压缩，校准阈值时调小它）。
+      context: (() => { const budget = Number(process.env.HUE_CONTEXT_BUDGET) > 0 ? Number(process.env.HUE_CONTEXT_BUDGET) : undefined; return chain(foldToolResults({ budget }), summarize({ model: llm, budget })) })(),
       // HUE_SKILLS=目录[:目录]（靠前的盖过靠后的）、HUE_MEMORY=目录：不设就不启用。技能和笔记在宿主上读写，不在沙箱里。
       capabilities: [...(process.env.HUE_SKILLS ? [skillsDir(process.env.HUE_SKILLS.split(':'))] : []), ...(process.env.HUE_MEMORY ? [memoryDir(process.env.HUE_MEMORY)] : [])],
       sandbox, task, sessionId, db: process.env.HUE_DB ?? './hue.db',
