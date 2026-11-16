@@ -48,7 +48,29 @@
 - 以宿主的 uid:gid 运行（不是 root），否则写进挂载目录的文件归 root，宿主上删不掉。`HOME=/tmp`。
 - 默认限制：2 GB 内存、2 个 CPU、1024 个进程。
 
-## 8. 没做
+## 8. 额外挂载（`mounts`）：pnpm store 跨容器缓存
+
+- **背景**：M1 实测，docker 的副本是新的 `git clone`，里面没有 `node_modules`，一次 `pnpm install` 4 分 5 秒（42 KiB/s），占那次运行工具时间的 85%（`docs/research/sandbox-evidence.md` §2）。§6 候选 C 就是"只挂 pnpm 缓存"。
+- **选了**：给 `DockerOptions` 加 `mounts: Array<{ host, container }>`，挂在 `docker run` 里。host 不存在时 `mkdirSync(recursive)` 先建——不然 docker 会以 root 建，写权限就坏了。CLI 用 `HUE_PNPM_CACHE=1` 开一个到 `~/.cache/hue/pnpm-store` → `/pnpm-store` 的挂载，并在系统提示里追加一句，让 agent 用 `corepack pnpm install --store-dir /pnpm-store`。
+- **为什么不做成"默认开"**：缓存目录是共享状态，多容器同时写同一 store 是 pnpm 本身支持的（content-addressable），但默认挂载一个宿主目录属于"沙箱多看了宿主一样东西"，要显式开。
+- **代价**：多个容器共享一个 store；第一次运行还是要下载（之后命中）。
+- **何时要改**：换包管理器（npm / yarn）就再挂各自的缓存；或沙箱方案整体换掉时（§6 候选 A/B）带走。
+
+## 9. seatbelt()：依赖 `@anthropic-ai/sandbox-runtime`，不自己写 Seatbelt 规则
+
+- **背景**：`local` 只做 env 白名单，文件不隔离（`bash` 能读项目外，evidence §3.2）；`docker` 隔离但副本里要重装依赖（§2）。缺的那格是"真实目录 + OS 门禁"。候选在 evidence §5（A 用 sandbox-runtime / B 自己写 / C 挂缓存 / D 不动），验证在 §6.1。
+- **选了**：A。`seatbelt()` 用 `SandboxManager.wrapWithSandboxArgv` 包命令，叠 local 同款 env 白名单，文件接口复用 `fs.ts`。
+- **为什么不自己写（B）**：自己写 Seatbelt 会踩符号链接路径的坑（§3.1，规则写 `/tmp/...` 等于没写）；sandbox-runtime 把 `allowWrite` 解析成真实路径，这个坑它没有（§6.1）。它是 TypeScript 库，适配 `SandboxPort` 只是薄封装。
+- **代价（都写进了 README 的"没验证的"）**：
+  - env 它不管，白名单是我们自己叠的（它返回的 env 是完整 `process.env`，密钥会漏）。
+  - 杀不了进程组（`detached` 会关掉 Seatbelt 规则），超时的后台进程会残留。测试里两个"杀整棵进程"用例对它 skip。
+  - 全局单例：一个进程只能有一份配置，第二个不同配置的 `seatbelt()` 直接 throw（core 冻结，`SandboxPort` 没有 dispose，靠进程退出）。
+  - 目录内相对符号链接报 `ENOENT` 不是权限错误（§6.1），真实 pnpm 场景没验证。
+  - `network` 是必填（缺省抛 TypeError）；默认 `allowedDomains: []` 全断。
+  - 默认 `denyRead` 只加存在的 `~/.ssh` / `~/.aws` / `~/.gnupg`：不存在的路径它在 Linux 会静默跳过，先滤掉。
+- **何时要改**：它出稳定版、或 Hue 要上 Linux（那时 bubblewrap 那条"规则静默跳过"必须先验证）、或真实仓库里符号链接的 `ENOENT` 行为确认有影响。
+
+## 10. 没做
 
 - **远程沙箱（E2B、Fly Sprites）**：接入草图是实现同一个 `SandboxPort`——`exec` 走它们的 API，文件接口走它们的文件 API，路径检查在它们那边做。没有实现。
-- **macOS 之外的验证**：只在 macOS + OrbStack 上跑过。Linux 原生 Docker 上的 bind mount 权限、cgroup v1 没验证。
+- **macOS 之外的验证**：只在 macOS + OrbStack 上跑过。Linux 原生 Docker 上的 bind mount 权限、cgroup v1 没验证；seatbelt 在 Linux（bubblewrap）完全没测。

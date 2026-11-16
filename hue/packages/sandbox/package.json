@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "type": "module",
   "private": true,
-  "description": "Hue sandbox: SandboxPort implementations (local process, Docker CLI). Zero runtime deps.",
+  "description": "Hue sandbox: SandboxPort implementations (local process, Docker CLI, sandbox-runtime seatbelt).",
   "exports": { ".": "./src/index.ts" },
-  "dependencies": { "@hue/core": "*" }
+  "dependencies": { "@hue/core": "*", "@anthropic-ai/sandbox-runtime": "0.0.83" }
 }

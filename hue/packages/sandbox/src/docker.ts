@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process'
 import { randomBytes, randomUUID } from 'node:crypto'
+import { mkdirSync } from 'node:fs'
 import { HueFault } from '@hue/core'
 import type { SandboxPort } from '@hue/core'
 import { collect } from './exec.js'
@@ -10,6 +11,8 @@ export interface DockerOptions {
   image?: string
   /** 宿主上要挂载的目录；容器里是 /work。只有它对容器可见。 */
   mount: string
+  /** 额外的只读/读写挂载，跨容器复用（比如 pnpm store 缓存）。host 若不存在会自动创建。 */
+  mounts?: Array<{ host: string; container: string }>
   /** 默认 'bridge'（能联网，npm install 要用）。'none' = 完全断网。见 DECISIONS.md 第 2 条。 */
   network?: string
   memory?: string
@@ -56,6 +59,8 @@ export async function docker(o: DockerOptions): Promise<DockerSandbox> {
       // 用宿主的 uid 运行：既不是 root，又能写挂载进来的目录（文件归属也对）。
       ...(uid === undefined ? [] : ['--user', `${uid}:${gid}`]),
       '-e', 'HOME=/tmp', '-e', 'LANG=C.UTF-8',
+      // 额外挂载（pnpm store 缓存等）。host 不存在时先建，docker 会以 root 建，写权限就坏了。
+      ...(o.mounts ?? []).flatMap(m => { mkdirSync(m.host, { recursive: true }); return ['-v', `${m.host}:${m.container}`] }),
       '-v', `${host}:${WORKDIR}`, '-w', WORKDIR, o.image ?? 'node:22', 'sleep', String(o.ttlSeconds ?? 14_400)], signal)
     if (r.code !== 0) throw new HueFault({ code: 'internal', message: `docker run failed (is Docker/OrbStack running?): ${r.stderr.trim().slice(0, 500)}`, source: 'sandbox:docker' })
   }
