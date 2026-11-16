@@ -2,12 +2,14 @@ import { textResult } from '@hue/core'
 import { DEFAULT_MAX_BYTES, defineTool, truncate, type ToolOptions } from './util.js'
 
 export interface BashOptions extends ToolOptions {
-  /** 命令超时，默认 120s。到时由 sandbox 杀进程，工具返回已有的输出。 */
+  /** 命令超时，默认 300s。到时由 sandbox 杀进程，工具返回已有的输出。 */
   timeoutMs?: number
 }
 
 export const bash = (o: BashOptions = {}) => {
-  const timeoutMs = o.timeoutMs ?? 120_000
+  // 默认 300s：M1 实测 docker 里第一次 pnpm install（挂缓存也要下载）用了 4 分 5 秒，120s 会在装到一半时被杀。
+  // 安装类命令通常最慢，其他命令远低于这个值。
+  const timeoutMs = o.timeoutMs ?? 300_000
   return defineTool<{ command: string }>({
     name: 'bash',
     description: `Run a shell command and return its stdout, stderr and exit code. Commands are killed after ${Math.round(timeoutMs / 1000)}s, so do not start servers or watchers. Each call is a fresh shell: cd and exported variables do not persist. Very long output is cut in the middle; pipe through grep, head or tail, or redirect to a file and use read.`,

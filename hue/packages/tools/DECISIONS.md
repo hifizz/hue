@@ -40,6 +40,7 @@
 | glob/grep 在 shell 里判断 `command -v rg`，没有就退回 `find` / `grep -E` | 最小镜像里不一定有 ripgrep；只多一次 exec，且判断和执行在同一环境。两个分支都用真 shell 测过。 |
 | 所有拼进 shell 的值都用单引号转义 | 模型给的 pattern 绝不能被 shell 解释。有测试用 `'; touch …` 和 `$(touch …)` 验证没有被执行。 |
 | `bash` 的 `timeoutMs` 比 sandbox 超时多 10 秒 | 让 sandbox 先杀进程并返回结构化结果；loop 的兜底超时只在 sandbox 失灵时触发。 |
+| `bash` 默认超时 300 秒（2026-11-16 从 120 改） | M1 实测 docker 里第一次 `pnpm install`（挂缓存也要下载）用了 4 分 5 秒，120 秒会在装到一半时被杀（运行 E 就是这么挂的）。安装类命令最慢，其他命令远低于这个值。代价：一条真卡住的命令要多等 3 分钟才被杀。 |
 | 搜索"没有匹配"是正常结果，正则写错才是错误 | `rg`/`grep` 退出码 1 就是没匹配；有 stderr 才是真错误。 |
 | 已取消的调用在任何 I/O 之前就抛 `AbortError` | `toolContract` 要求，也避免取消后还写文件。 |
 | 没有 sandbox → 返回明确的错误结果而不是崩溃 | 任务书要求。 |

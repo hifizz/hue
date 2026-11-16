@@ -33,7 +33,6 @@ export const color = {
   gold: fg(ok(83, 88, 67)),
   green: fg(ok(159, 59, 67)),
   sky: fg(ok(232, 54, 67)),
-  cyan: fg(ok(231, 57, 65)),
   red: fg(ok(20, 72, 67)),
 }
 
