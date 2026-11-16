@@ -35,6 +35,10 @@
 
 core 另有 [`hue/packages/core/DECISIONS.md`](../../hue/packages/core/DECISIONS.md)（此前没有）：D1–D7 摘要加原先未决的四个问题（第 5–8 条，已拍板）。
 
+## 正在准备的决定
+
+- 沙箱方案（依赖 `sandbox-runtime` / 自己写 Seatbelt 与 bubblewrap / 给 docker 挂包缓存）：证据已整理在 [docs/research/sandbox-evidence.md](../research/sandbox-evidence.md)，ADR 尚未写，待补做的验证见该文档第 6 节。
+
 ## `DECIDE:` 标记去向表
 
 清理前 `grep -rn "DECIDE:" docs/` 共 33 处，下表是其中设计页、架构页、目标页上的 22 处。**表里"已决"的现在都已改成 `DONE(ADR-xxx)`（或 `LATER`），行号是清理前的行号。** 仍以 `DECIDE:` 保留的见表尾。
