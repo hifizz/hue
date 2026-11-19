@@ -32,12 +32,12 @@ async function run(events: Parameters<typeof reply>[0], stop: string, extra: Par
 
 // ═════════ model() 分发 ═════════
 
-test('model(): 按前缀分发；未知前缀、缺冒号、openai（未实现）都抛错', () => {
+test('model(): 按前缀分发；未知前缀、缺冒号都抛错；openai 也能分发', () => {
   const m = model('anthropic:claude-haiku-5-5', { apiKey: 'k' })
   assert.equal(m.id, 'anthropic:claude-haiku-5-5'); assert.equal(m.specVersion, 'hue.model.v1')
+  assert.equal(model('openai:gpt-6.1-sol', { apiKey: 'k' }).id, 'openai:gpt-6.1-sol')
   assert.throws(() => model('mystery:x', { apiKey: 'k' }), /unknown model provider "mystery"/)
   assert.throws(() => model('claude-haiku-5-5'), /must look like/)
-  assert.throws(() => model('openai:gpt-5'), /not implemented/)
 })
 
 test('model(): 没有 key 就在构造时报错，不等到第一次请求', () => {
