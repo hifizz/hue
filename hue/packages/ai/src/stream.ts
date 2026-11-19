@@ -10,8 +10,9 @@
  * 为什么 tool_use 要攒到 stop 才发：partial_json 单独拿出来（`{"cit`）不是合法 JSON，拼完才是。
  * 为什么 thinking 的 signature 要存到 stop 才发：它在 stop 之前才到，而且丢了下一轮会 400。
  */
-import type { FinishReason, HueError, Json, ModelChunk, ProviderMetadata, Usage } from '@hue/core'
+import type { FinishReason, HueError, ModelChunk, ProviderMetadata, Usage } from '@hue/core'
 import type { SSEMessage } from './sse.js'
+import { parseToolInput } from './tooljson.js'
 
 type OpenBlock =
   | { kind: 'text' }
@@ -106,12 +107,6 @@ export async function* toChunks(events: AsyncIterable<SSEMessage>): AsyncGenerat
   // 合同要求"有 tool-call 则 finishReason 是 tool-calls"。max_tokens 截断工具参数时也走这条：
   // 截断的参数已经是 { __raw }，loop 会把"参数不是合法 JSON"回给模型，让它换短参数重试。
   yield { type: 'finish', finishReason: sawToolCall ? 'tool-calls' : mapStopReason(stopReason), usage }
-}
-
-/** 空串 = 无参数工具（一个 input_json_delta 都没来），等价 {}。解析失败（多半是被 max_tokens 截断）包成 { __raw }。 */
-export function parseToolInput(raw: string): Json {
-  if (raw.trim() === '') return {}
-  try { return JSON.parse(raw) } catch { return { __raw: raw } }
 }
 
 function mapStopReason(r: string | undefined): FinishReason {

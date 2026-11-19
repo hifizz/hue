@@ -4,7 +4,7 @@
  *
  * 成功路径上几乎没有新逻辑，复杂度都在失败路径：HTTP 出错、网络断、被取消、连接要释放。
  */
-import type { ModelPort, ModelChunk, ModelRequest } from '@hue/core'
+import type { ModelChunk, ModelPort, ModelRequest } from '@hue/core'
 import { anthropicInfo } from './info.js'
 import { ApiError, backoffMs, fetchWithRetry, sleep, type RetryOptions } from './http.js'
 import { toAnthropicBody, type RequestOptions } from './request.js'
@@ -119,11 +119,7 @@ export function anthropicModel(name: string, o: AnthropicOptions = {}): ModelPor
 
 const pick = (o: AnthropicOptions) => ({ ...(o.thinking && { thinking: o.thinking }), ...(o.effort && { effort: o.effort }), ...(o.cache !== undefined && { cache: o.cache }) })
 
-/**
- * ReadableStream → 异步迭代的字节。
- * finally 里的 cancel 很重要：消费者提前停止（取消、看到错误就 return）时，
- * 不 cancel 的话底层 HTTP 连接会一直挂着，直到服务端把整个回复发完。
- */
+/** ReadableStream → 异步迭代的字节。Anthropic / OpenAI 两个 ModelPort 共用。 */
 async function* bodyBytes(body: ReadableStream<Uint8Array>): AsyncGenerator<Uint8Array> {
   const reader = body.getReader()
   try {
@@ -136,3 +132,5 @@ async function* bodyBytes(body: ReadableStream<Uint8Array>): AsyncGenerator<Uint
     await reader.cancel().catch(() => {}) // 流已出错或关闭时 cancel 会 reject，无所谓
   }
 }
+
+export { bodyBytes }

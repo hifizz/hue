@@ -10,3 +10,11 @@ const KNOWN: Record<string, ModelInfo> = {
 const CONSERVATIVE: ModelInfo = { contextWindow: 200_000, maxOutputTokens: 8_192, supports: { tools: true, parallelToolCalls: true, reasoning: false, images: true } }
 
 export const anthropicInfo = (model: string): ModelInfo => KNOWN[model] ?? CONSERVATIVE
+
+// 数字来自官方 Models 页（2026-11 核对）；GPT-6 系输入含图像。未知模型（中转自定义名）宁可低估：低估上下文只让压缩早一点触发。
+const GPT6: ModelInfo = { contextWindow: 1_050_000, maxOutputTokens: 128_000, supports: { tools: true, parallelToolCalls: true, reasoning: true, images: true } }
+const OPENAI_KNOWN: Record<string, ModelInfo> = {
+  'gpt-6.2-astra': GPT6, 'gpt-6.2-sol': GPT6, 'gpt-6.1-sol': GPT6, 'gpt-6.1-terra': GPT6, 'gpt-6-luna': GPT6,
+}
+
+export const openaiInfo = (model: string): ModelInfo => OPENAI_KNOWN[model] ?? { contextWindow: 200_000, maxOutputTokens: 8_192, supports: { tools: true, parallelToolCalls: true, reasoning: false, images: true } }
